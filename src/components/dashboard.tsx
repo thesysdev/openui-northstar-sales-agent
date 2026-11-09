@@ -19,6 +19,7 @@ import {
 } from "react";
 import { library } from "../library";
 import { Notch } from "./notch";
+import { withBase } from "../lib/base-path";
 
 /** What the renderer streams: a tool call's result, as is, or for a dashboard from the list, its id. */
 export type DashboardSource = { response: string } | { id: string };
@@ -168,7 +169,7 @@ export function DashboardPanel({ edit = false, ...source }: DashboardSource & { 
       <LiveArtifactRenderer
         {...source}
         library={library}
-        interpreter={{ url: "/api/interpreter" }}
+        interpreter={{ url: withBase("/api/interpreter") }}
         preview={false}
         className="h-full"
       >
@@ -284,7 +285,7 @@ function DashboardNotch({
       const copy = root.cloneNode(true) as HTMLElement;
       copy.querySelectorAll("svg").forEach((svg) => svg.replaceChildren());
       try {
-        const response = await fetch("/api/token-savings", {
+        const response = await fetch(withBase("/api/token-savings"), {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ id, html: copy.outerHTML }),

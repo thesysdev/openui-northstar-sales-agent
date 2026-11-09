@@ -1,17 +1,18 @@
 import { OpenUIApiError } from "@openuidev/server";
-import { openui, userId } from "../../../lib/openui";
+import type { NextRequest } from "next/server";
+import { openui } from "../../../lib/openui";
+import { noVisitor, readVisitorId } from "../../../lib/visitor";
 
 export const runtime = "nodejs";
 
 // Mints the short-lived frontend token the browser sends to OpenUI Cloud, for the thread list and
-// for streaming dashboards. It's scoped to one user, so the browser reaches only that user's
-// threads and dashboards and never sees THESYS_API_KEY.
-export async function POST(request: Request) {
+// for streaming dashboards. It's scoped to the visitor, so the browser reaches only that visitor's
+// dashboards and never sees THESYS_API_KEY.
+export async function POST(request: NextRequest) {
+  const visitor = readVisitorId(request);
+  if (!visitor) return noVisitor();
   try {
-    const token = await openui.createFrontendToken(
-      { userId: userId() },
-      { signal: request.signal },
-    );
+    const token = await openui.createFrontendToken({ userId: visitor }, { signal: request.signal });
     return Response.json(token, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     const status = error instanceof OpenUIApiError ? (error.status ?? 500) : 500;

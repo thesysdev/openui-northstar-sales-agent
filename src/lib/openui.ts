@@ -2,6 +2,7 @@ import { promptOptions } from "@openuidev/dashboard-library";
 import { OpenUIClient } from "@openuidev/server";
 import spec from "../generated/spec.json";
 import { dataTools } from "./data";
+import { currentVisitor } from "./visitor";
 
 // OpenUI Cloud, or your own deployment of it, such as a local stack at http://localhost:3102.
 export const baseUrl = (process.env.THESYS_BASE_URL || "https://api.thesys.dev").replace(
@@ -12,10 +13,13 @@ export const baseUrl = (process.env.THESYS_BASE_URL || "https://api.thesys.dev")
 // Reads THESYS_API_KEY when it makes a request.
 export const openui = new OpenUIClient({ baseUrl });
 
-// There is no sign-in, so every browser shares one local user, as in apps from `openui create`.
-// Use the signed-in user's id instead when you add authentication: users read and edit only
-// their own dashboards.
-export const userId = () => process.env.DEMO_USER_ID || "assistant-ui-dashboards-demo";
+// Dashboards belong to the visitor the work runs for (src/lib/visitor.ts), so each visitor
+// lists, opens and edits only their own.
+export function userId(): string {
+  const id = currentVisitor();
+  if (!id) throw new Error("No visitor: run this inside asVisitor()");
+  return id;
+}
 
 // One definition for every dashboard: the components it's built from, the model that builds
 // it, and where its data comes from: our sales data tools over the Neon database. Its

@@ -3,6 +3,7 @@
 import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { withBase } from "../lib/base-path";
 
 type ActivityEvent = {
   id: number;
@@ -46,7 +47,7 @@ export function DataActivity() {
     let stopped = false;
     const poll = async () => {
       try {
-        const response = await fetch(`/api/activity?since=${lastId.current}`);
+        const response = await fetch(withBase(`/api/activity?since=${lastId.current}`));
         if (!response.ok || stopped) return;
         const { events: fresh } = (await response.json()) as { events: ActivityEvent[] };
         if (fresh.length === 0) return;

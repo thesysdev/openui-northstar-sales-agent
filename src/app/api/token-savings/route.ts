@@ -1,5 +1,7 @@
 import { encode } from "gpt-tokenizer";
-import { baseUrl, openui, userId } from "../../../lib/openui";
+import type { NextRequest } from "next/server";
+import { baseUrl, openui } from "../../../lib/openui";
+import { noVisitor, readVisitorId } from "../../../lib/visitor";
 
 export const runtime = "nodejs";
 
@@ -10,7 +12,9 @@ export const runtime = "nodejs";
 
 const MAX_HTML = 2_000_000;
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const visitor = readVisitorId(request);
+  if (!visitor) return noVisitor();
   const { id, html } = (await request.json().catch(() => ({}))) as { id?: unknown; html?: unknown };
   if (typeof id !== "string" || !/^art_[A-Za-z0-9_-]+$/.test(id)) {
     return Response.json({ error: "Bad dashboard id" }, { status: 400 });
@@ -19,8 +23,8 @@ export async function POST(request: Request) {
     return Response.json({ error: "Bad html" }, { status: 400 });
   }
 
-  // The frontend token reads only this demo user's dashboards.
-  const { token } = await openui.createFrontendToken({ userId: userId() });
+  // The frontend token reads only this visitor's dashboards.
+  const { token } = await openui.createFrontendToken({ userId: visitor });
   const response = await fetch(`${baseUrl}/v1/artifacts/${encodeURIComponent(id)}`, {
     headers: { "x-thesys-frontend-token": token },
     signal: request.signal,

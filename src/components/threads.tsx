@@ -11,7 +11,7 @@ import { useMemo } from "react";
 // The chat is yours to keep: this example keeps it in the browser's localStorage. Swap these
 // helpers for your own database to keep threads on your server. OpenUI Cloud only builds and
 // stores the dashboards.
-const PREFIX = "assistant-ui-dashboards";
+const PREFIX = "northstar";
 
 type StoredThread = {
   remoteId: string;

@@ -1,6 +1,8 @@
+import type { NextRequest } from "next/server";
 import { query } from "../../../../lib/data/db";
 import { cached } from "../../../../lib/data/fetch";
 import { TABLES } from "../../../../lib/tables";
+import { asVisitor, noVisitor, readVisitorId } from "../../../../lib/visitor";
 
 export const runtime = "nodejs";
 
@@ -20,9 +22,11 @@ const sql = `SELECT
   (SELECT min(placed_at) FROM retail.orders) AS first_order,
   (SELECT max(placed_at) FROM retail.orders) AS last_order`;
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
+  const visitor = readVisitorId(request);
+  if (!visitor) return noVisitor();
   const summary = await cached("db:summary", 5 * 60_000, async () => {
-    const [row] = await query(sql, [], request.signal);
+    const [row] = await asVisitor(visitor, () => query(sql, [], request.signal));
     const host = process.env.DATABASE_URL?.match(/@([^/:?]+)/)?.[1] ?? "";
     return {
       ...row,

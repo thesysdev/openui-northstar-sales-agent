@@ -45,7 +45,7 @@ Optional settings in `.env.local`:
 | `OPENUI_MODEL` | Chat model, as a Gateway `provider/model` id | `anthropic/claude-sonnet-5.5` |
 | `OPENUI_DASHBOARD_MODEL` | Model that builds dashboards | `anthropic/claude-sonnet-5.5` |
 | `OPENUI_FOLLOWUPS_MODEL` | Model that writes follow-up suggestions | `OPENUI_MODEL` |
-| `DEMO_USER_ID` | The single local user that owns dashboards | `assistant-ui-dashboards-demo` |
+| `NEXT_PUBLIC_BASE_PATH` | Path the app is served under, such as `/demo/northstar`, read at build time | the root |
 | `THESYS_BASE_URL` | Another OpenUI Cloud deployment | `https://api.thesys.dev` |
 
 Try:
@@ -80,7 +80,9 @@ OpenUI Cloud stores each dashboard's definition, not its data. Numbers reach the
 | File | Purpose |
 | --- | --- |
 | `src/lib/data/sales.ts`, `db.ts` | SQL-backed sales tools: KPIs, trends, breakdowns, top products, returns, targets vs actuals, customers, promotions |
-| `src/lib/openui.ts` | `OpenUIClient`, the dashboard definition, base URL and local user |
+| `src/lib/openui.ts` | `OpenUIClient`, the dashboard definition and base URL |
+| `src/lib/visitor.ts`, `src/proxy.ts` | Each browser's anonymous visitor id, which owns its dashboards |
+| `src/lib/base-path.ts` | The base path, for hand-written URLs |
 | `src/lib/toolkit.tsx` | `create_dashboard` and `edit_dashboard`: schema, `execute`, `render` |
 | `src/lib/prompt.ts` | Chat instructions and the data dashboards can show |
 | `src/app/page.tsx`, `src/components/home-sentence.tsx` | Home page and the sentence builder |
@@ -96,8 +98,8 @@ OpenUI Cloud stores each dashboard's definition, not its data. Numbers reach the
 
 ## Before deploying
 
-The app binds to loopback, and every browser shares one local user. To put it on the internet:
+The app binds to loopback. Each browser gets an anonymous visitor id in a cookie, which keeps visitors' dashboards apart but doesn't prove who anyone is. To put it on the internet:
 
-- Add [authentication](https://www.openui.com/docs/gateway/authentication), and use the signed-in user's id for the frontend token and the dashboard tools.
+- Add [authentication](https://www.openui.com/docs/gateway/authentication), and use the signed-in user's id in place of the visitor id (`src/lib/visitor.ts`).
 - Add rate limits to the API routes.
 - Use a read-only database role for `DATABASE_URL`.

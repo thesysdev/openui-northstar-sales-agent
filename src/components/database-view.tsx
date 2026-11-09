@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { TABLE_DESCRIPTIONS, TABLE_GROUPS, type TableName } from "@/lib/tables";
 import { Database, Table, X } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
+import { withBase } from "../lib/base-path";
 
 type Row = Record<string, unknown>;
 type TableData = { rows: Row[]; total: number; limit: number };
@@ -33,7 +34,7 @@ export function DatabaseView({ hidden, onBack }: { hidden: boolean; onBack: () =
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch("/api/db/summary", { signal: controller.signal })
+    fetch(withBase("/api/db/summary"), { signal: controller.signal })
       .then((response) => (response.ok ? (response.json() as Promise<Summary>) : null))
       .then((loaded) => loaded && setSummary(loaded))
       .catch(() => {});
@@ -45,7 +46,7 @@ export function DatabaseView({ hidden, onBack }: { hidden: boolean; onBack: () =
     const table = selection;
     const controller = new AbortController();
     setFailed(null);
-    fetch(`/api/db?table=${table}`, { signal: controller.signal })
+    fetch(withBase(`/api/db?table=${table}`), { signal: controller.signal })
       .then((response) => {
         if (!response.ok) throw new Error(String(response.status));
         return response.json() as Promise<TableData>;
@@ -61,7 +62,7 @@ export function DatabaseView({ hidden, onBack }: { hidden: boolean; onBack: () =
     const current = data[table];
     if (!current || loadingMore) return;
     setLoadingMore(true);
-    fetch(`/api/db?table=${table}&offset=${current.rows.length}`)
+    fetch(withBase(`/api/db?table=${table}&offset=${current.rows.length}`))
       .then((response) => (response.ok ? (response.json() as Promise<TableData>) : null))
       .then((loaded) => {
         if (loaded) {

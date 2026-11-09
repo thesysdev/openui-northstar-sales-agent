@@ -2,7 +2,7 @@
 
 import { Thread } from "@/components/assistant-ui/elements/thread.aui";
 import { cn } from "@/lib/utils";
-import { useChatRuntime } from "@assistant-ui/ai-sdk";
+import { AssistantChatTransport, useChatRuntime } from "@assistant-ui/ai-sdk";
 import {
   AssistantRuntimeProvider,
   AuiConfig,
@@ -17,6 +17,7 @@ import {
 import { OpenUICloudProvider, useArtifactList } from "@openuidev/react-ui/cloud";
 import { ChatCircle, CircleNotch, SidebarSimple, X } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
+import { withBase } from "../lib/base-path";
 import toolkit from "../lib/toolkit";
 import { DashboardPanel, OpenDashboardProvider, useOpenDashboard } from "./dashboard";
 import { DashboardSidebar } from "./dashboard-sidebar";
@@ -26,7 +27,10 @@ import { HomeSentence } from "./home-sentence";
 import { DatabaseView } from "./database-view";
 import { localThreadList } from "./threads";
 
-const token = "/api/frontend-token";
+const token = withBase("/api/frontend-token");
+
+// Threads are cloned from this transport, each posting to /api/chat.
+const transport = new AssistantChatTransport({ api: withBase("/api/chat") });
 
 /** A message's text, plus a note for each dashboard it created, for the follow-ups model. */
 function describe(message: ThreadMessage): string {
@@ -44,15 +48,17 @@ function describe(message: ThreadMessage): string {
     .slice(0, 500);
 }
 
-// After each settled run, asks /api/followups for the next three things worth asking.
+// After each settled run, asks /api/followups for the next three things worth asking. Not after
+// a failed or stopped reply: each request counts against the visitor's daily calls on openui.com.
 const suggestionAdapter: SuggestionAdapter = {
   async generate({ messages, signal }) {
-    if (messages.at(-1)?.role !== "assistant") return [];
+    const last = messages.at(-1);
+    if (last?.role !== "assistant" || last.status?.type === "incomplete") return [];
     const transcript = messages
       .slice(-6)
       .map((message) => `${message.role}: ${describe(message)}`)
       .join("\n");
-    const response = await fetch("/api/followups", {
+    const response = await fetch(withBase("/api/followups"), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ transcript }),
@@ -68,7 +74,7 @@ export default function App({ apiBaseUrl, ask }: { apiBaseUrl?: string; ask?: st
   // Each thread posts to /api/chat, which runs the dashboard tools on the server. Threads are
   // kept in this browser (src/components/threads.tsx), not in OpenUI Cloud.
   const runtime = useRemoteThreadListRuntime({
-    runtimeHook: () => useChatRuntime({ adapters: { suggestion: suggestionAdapter } }),
+    runtimeHook: () => useChatRuntime({ transport, adapters: { suggestion: suggestionAdapter } }),
     adapter: localThreadList,
   });
   return (
@@ -107,7 +113,7 @@ function AutoAsk({ text }: { text: string }) {
     sent.current = true;
     (aui.thread as unknown as { append: (message: string) => void }).append(text);
     // Drop ?ask so a reload doesn't ask again.
-    window.history.replaceState(null, "", "/app");
+    window.history.replaceState(null, "", withBase("/app"));
   }, [text, aui]);
   return null;
 }
