@@ -1,6 +1,14 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { AISDKToolkit } from "@assistant-ui/ai-sdk";
-import { convertToModelMessages, stepCountIs, streamText, type ToolSet, type UIMessage } from "ai";
+import {
+  convertToModelMessages,
+  createUIMessageStreamResponse,
+  stepCountIs,
+  streamText,
+  toUIMessageStream,
+  type ToolSet,
+  type UIMessage,
+} from "ai";
 import type { NextRequest } from "next/server";
 import { baseUrl } from "../../../lib/openui";
 import { chatPrompt } from "../../../lib/prompt";
@@ -25,7 +33,7 @@ export async function POST(request: NextRequest) {
   const tools = forVisitor(await dashboardTools.tools(), visitor);
 
   const result = streamText({
-    model: gateway.chat(process.env.OPENUI_MODEL || "anthropic/claude-sonnet-5.5"),
+    model: gateway.chat(process.env.OPENUI_MODEL || "google/gemini-3.6-flash-free"),
     system: chatPrompt,
     messages: await convertToModelMessages(messages, { tools }),
     tools,
@@ -33,7 +41,9 @@ export async function POST(request: NextRequest) {
     stopWhen: stepCountIs(4),
     abortSignal: request.signal,
   });
-  return result.toUIMessageStreamResponse();
+  return createUIMessageStreamResponse({
+    stream: toUIMessageStream({ stream: result.stream, tools }),
+  });
 }
 
 /** The tools, each running for `visitor`: the model calls them while the reply streams. */

@@ -42,7 +42,7 @@ Optional settings in `.env.local`:
 
 | Variable | What it does | Default |
 | --- | --- | --- |
-| `OPENUI_MODEL` | Chat model, as a Gateway `provider/model` id | `anthropic/claude-sonnet-5.5` |
+| `OPENUI_MODEL` | Chat model, as a Gateway `provider/model` id | `google/gemini-3.6-flash-free` |
 | `OPENUI_DASHBOARD_MODEL` | Model that builds dashboards | `anthropic/claude-sonnet-5.5` |
 | `OPENUI_FOLLOWUPS_MODEL` | Model that writes follow-up suggestions | `OPENUI_MODEL` |
 | `NEXT_PUBLIC_BASE_PATH` | Path the app is served under, such as `/demo/northstar`, read at build time | the root |
