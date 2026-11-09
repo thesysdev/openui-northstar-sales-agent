@@ -7,6 +7,7 @@ import {
   RETURNS_JOIN,
   SALES_WHERE,
   changePct,
+  dataDays,
   dateRange,
   money,
   pct,
@@ -19,7 +20,7 @@ import { cacheHas, cached, int, oneOf, text } from "./fetch";
 import { dataTool } from "./tool";
 
 // Data tools over the Neon sales database (schema `retail`): 100k orders from Nov 2024 to
-// today, in USD. "Net sales" is revenue after discounts (before refunds): completed, captured
+// its latest order, in USD. "Net sales" is revenue after discounts (before refunds): completed, captured
 // orders only, with test orders and internal customers excluded. Refunds come from returns,
 // by the date they were processed. Results are cached for 3 minutes.
 
@@ -42,9 +43,11 @@ const rangeParams = {
     .min(1)
     .max(24)
     .default(6)
-    .describe("How many months back from today, 1 to 24. Ignored when from/to are set."),
+    .describe(
+      "How many months back from the last day of data, 1 to 24. Ignored when from/to are set.",
+    ),
   from: z.string().optional().describe("Start date YYYY-MM-DD (data starts 2024-11-01)"),
-  to: z.string().optional().describe("End date YYYY-MM-DD, default today"),
+  to: z.string().optional().describe("End date YYYY-MM-DD, default the last day of data"),
 };
 
 /** Period expression and label format for a trend interval. */
@@ -74,7 +77,7 @@ export const salesTools = {
       change: { net_sales_pct: 6.4, orders_pct: 5.2, aov_pct: 1.1 },
     },
     async (args, signal) => {
-      const { from, to } = dateRange(args);
+      const { from, to } = await dateRange(args);
       const prev = previousRange(from, to);
       return run("overview", { from, to }, async () => {
         const [sales, refunds] = await Promise.all([
@@ -175,7 +178,7 @@ export const salesTools = {
       ],
     },
     async (args, signal) => {
-      const { from, to } = dateRange(args);
+      const { from, to } = await dateRange(args);
       const interval = oneOf(args.interval, INTERVALS, "month");
       const groupBy = oneOf(args.group_by, TREND_DIMS, "none");
       return run("trend", { from, to, interval, groupBy }, async () => {
@@ -250,7 +253,7 @@ export const salesTools = {
       ],
     },
     async (args, signal) => {
-      const { from, to } = dateRange(args);
+      const { from, to } = await dateRange(args);
       const dimension = oneOf(args.dimension, BREAKDOWN_DIMS, "category");
       const limit = int(args.limit, 10, 3, 25);
       return run("breakdown", { from, to, dimension, limit }, async () => {
@@ -341,7 +344,7 @@ export const salesTools = {
       ],
     },
     async (args, signal) => {
-      const { from, to } = dateRange(args);
+      const { from, to } = await dateRange(args);
       const metric = oneOf(args.metric, ["net_sales", "units", "margin", "return_rate"], "net_sales");
       const category = text(args.category).toLowerCase();
       const brand = text(args.brand).toLowerCase();
@@ -431,7 +434,7 @@ export const salesTools = {
       ],
     },
     async (args, signal) => {
-      const { from, to } = dateRange(args);
+      const { from, to } = await dateRange(args);
       const by = oneOf(args.by, ["reason", "category", "month"], "reason");
       return run("returns", { from, to, by }, async () => {
         const dim = {
@@ -488,7 +491,7 @@ export const salesTools = {
   ),
 
   get_targets_vs_actuals: dataTool(
-    "Monthly net sales against the approved sales targets, for the whole business or per region or category: one row per month and scope with target (USD), actual (net sales minus refunds processed that month), and attainment_pct. The current month is partial, so its attainment runs low.",
+    "Monthly net sales against the approved sales targets, for the whole business or per region or category: one row per month and scope with target (USD), actual (net sales minus refunds processed that month), and attainment_pct. The latest month of data is usually partial, so its attainment runs low.",
     z.object({
       scope: z
         .enum(["business", "region", "category"])
@@ -506,37 +509,40 @@ export const salesTools = {
     async (args, signal) => {
       const scope = oneOf(args.scope, ["business", "region", "category"], "business");
       const months = int(args.months, 6, 1, 24);
-      return run("targets", { scope, months }, async () => {
+      const { last } = await dataDays();
+      return run("targets", { scope, months, last }, async () => {
         const dim = { business: "'ALL'", region: "o.shipping_region", category: "p.category" }[
           scope
         ];
         const joins = scope === "category" ? PRODUCTS_JOIN : "";
+        // The first day of the earliest month: `months` months up to the data's last month.
+        const since = "date_trunc('month', $1::date) - make_interval(months => $2 - 1)";
         const [targets, sales, refunds] = await Promise.all([
           query(
             `SELECT to_char(month_start, 'YYYY-MM') AS month, scope_id AS scope,
                     round(net_sales_target::numeric, 2)::float8 AS target
              FROM retail.sales_targets
-             WHERE scope_type = $1 AND month_start >= date_trunc('month', now()) - make_interval(months => $2 - 1)
+             WHERE scope_type = $3 AND month_start >= ${since} AND month_start <= $1::date
              ORDER BY 1, 2`,
-            [scope, months],
+            [last, months, scope],
             signal,
           ),
           query(
             `SELECT to_char(date_trunc('month', o.placed_at), 'YYYY-MM') AS month, ${dim} AS scope,
                     ${money("oi.line_booked_amount")} AS booked
              FROM ${ORDERS_JOIN}${joins}
-             WHERE ${SALES_WHERE} AND o.placed_at >= date_trunc('month', now()) - make_interval(months => $1 - 1)
+             WHERE ${SALES_WHERE} AND o.placed_at >= ${since}
              GROUP BY 1, 2`,
-            [months],
+            [last, months],
             signal,
           ),
           query(
             `SELECT to_char(date_trunc('month', r.processed_at), 'YYYY-MM') AS month, ${dim} AS scope,
                     ${money("r.product_refund_amount")} AS refunds
              FROM ${RETURNS_JOIN}${joins}
-             WHERE ${SALES_WHERE} AND r.processed_at >= date_trunc('month', now()) - make_interval(months => $1 - 1)
+             WHERE ${SALES_WHERE} AND r.processed_at >= ${since}
              GROUP BY 1, 2`,
-            [months],
+            [last, months],
             signal,
           ),
         ]);
@@ -583,7 +589,7 @@ export const salesTools = {
       ],
     },
     async (args, signal) => {
-      const { from, to } = dateRange(args, 12);
+      const { from, to } = await dateRange(args, 12);
       return run("customers", { from, to }, async () => {
         const [months, channels] = await Promise.all([
           query(
@@ -635,7 +641,7 @@ export const salesTools = {
       ],
     },
     async (args, signal) => {
-      const { from, to } = dateRange(args);
+      const { from, to } = await dateRange(args);
       return run("promotions", { from, to }, async () => {
         const [discounts, sales] = await Promise.all([
           query(

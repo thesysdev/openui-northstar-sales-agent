@@ -1,7 +1,7 @@
 import { neon } from "@neondatabase/serverless";
 import { ToolExecutionError } from "@openuidev/server";
 import { record, toolContext } from "./activity";
-import { int, text } from "./fetch";
+import { cached, int, text } from "./fetch";
 
 // Querying the Neon sales database (schema `retail`). Every data tool goes through `query`,
 // which parameterizes, times out after 10 seconds, and stops when the dashboard's request ends.
@@ -79,16 +79,33 @@ const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 const day = (date: Date) => date.toISOString().slice(0, 10);
 
 /**
- * A lenient date range: explicit `from`/`to` (YYYY-MM-DD) when given, otherwise `months`
- * back (default `defaultMonths`, clamped to 1–24) from today. The data starts 2024-11-01.
+ * The first and last day with orders (YYYY-MM-DD), checked once an hour. Date ranges count
+ * back from the last day, not from today: if the data stops growing, dashboards keep showing
+ * its latest months instead of running out of data.
  */
-export function dateRange(
+export const dataDays = () =>
+  cached("db:days", 60 * 60_000, async () => {
+    // Shared by every request in the hour, so it isn't tied to the one that loads it.
+    const [row] = await query<{ first: string | null; last: string | null }>(
+      "SELECT min(placed_at)::date::text AS first, max(placed_at)::date::text AS last FROM retail.orders",
+      [],
+      new AbortController().signal,
+    );
+    const today = day(new Date());
+    return { first: row?.first ?? today, last: row?.last ?? today };
+  });
+
+/**
+ * A lenient date range within the data: explicit `from`/`to` (YYYY-MM-DD) when given,
+ * otherwise `months` back (default `defaultMonths`, clamped to 1–24) from its last day.
+ */
+export async function dateRange(
   args: Record<string, unknown>,
   defaultMonths = 6,
-): { from: string; to: string } {
-  const today = day(new Date());
-  let to = ISO_DAY.test(text(args.to)) ? text(args.to) : today;
-  if (to > today) to = today;
+): Promise<{ from: string; to: string }> {
+  const { first, last } = await dataDays();
+  let to = ISO_DAY.test(text(args.to)) ? text(args.to) : last;
+  if (to > last) to = last;
   let from: string;
   if (ISO_DAY.test(text(args.from))) {
     from = text(args.from);
@@ -100,7 +117,10 @@ export function dateRange(
     from = day(start);
   }
   if (from > to) [from, to] = [to, from];
-  if (from < "2024-11-01") from = "2024-11-01";
+  // A range that reaches past the data is cut to it.
+  if (to > last) to = last;
+  if (from < first) from = first;
+  if (from > to) from = to;
   return { from, to };
 }
 

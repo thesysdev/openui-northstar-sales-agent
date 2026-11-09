@@ -4,7 +4,7 @@ import { baseUrl } from "../../../lib/openui";
 
 export const runtime = "nodejs";
 
-const system = `You suggest the next questions for a sales analytics chat. Northstar is a multi-brand apparel, footwear and accessories retailer; the assistant builds live dashboards from its sales database: net sales, trends, breakdowns by region, state, category, subcategory, brand, channel and device, top products, returns, targets vs actuals, new vs returning customers, and promotions. Data runs from November 2024 to today, in USD.
+const system = `You suggest the next questions for a sales analytics chat. Northstar is a multi-brand apparel, footwear and accessories retailer; the assistant builds live dashboards from its sales database: net sales, trends, breakdowns by region, state, category, subcategory, brand, channel and device, top products, returns, targets vs actuals, new vs returning customers, and promotions. Data runs from November 2024 to the latest order, in USD.
 
 Given the conversation, reply with ONLY a JSON array of 3 very short follow-up requests the user would plausibly send next. Build on the latest dashboard (drill down, compare, add a view, change the range) or pivot to a related question. Each 3 to 6 words, like a button label ("Split by region", "Add margin trend"), no numbers, no trailing punctuation.`;
 
