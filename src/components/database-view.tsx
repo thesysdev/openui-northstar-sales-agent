@@ -160,7 +160,8 @@ function RailRow({
   );
 }
 
-const MONTH = { month: "short", year: "numeric" } as const;
+// In UTC, as stored: a late order on the last day isn't next month in the browser's time zone.
+const MONTH = { month: "short", year: "numeric", timeZone: "UTC" } as const;
 const months = (iso: string) =>
   new Date(iso).toLocaleDateString("en-US", MONTH);
 
