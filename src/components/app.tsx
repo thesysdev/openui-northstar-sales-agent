@@ -14,7 +14,7 @@ import {
   type SuggestionAdapter,
   type ThreadMessage,
 } from "@assistant-ui/react";
-import { OpenUICloudProvider } from "@openuidev/react-ui/cloud";
+import { OpenUICloudProvider, useArtifactList } from "@openuidev/react-ui/cloud";
 import { ChatCircle, CircleNotch, SidebarSimple, X } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import toolkit from "../lib/toolkit";
@@ -169,6 +169,11 @@ function AgentView({ hidden, onShowData }: { hidden: boolean; onShowData: () => 
   // so the conversation panel stays out of the way until something happens.
   const emptyThread = useAuiState((state) => state.thread.isEmpty);
   const [chatCollapsed, setChatCollapsed] = useState(false);
+  // Once any dashboard exists, the rail stays (collapsed) even on a fresh "new dashboard", so
+  // earlier dashboards are one click away. Shares the sidebar's cache.
+  const hasDashboards =
+    useArtifactList({ filter: { type: "dashboard", limit: 1 } }).artifacts.length > 0;
+  const hideRail = emptyThread && !open && !hasDashboards;
   return (
     <div
       className={cn(
@@ -176,12 +181,12 @@ function AgentView({ hidden, onShowData }: { hidden: boolean; onShowData: () => 
         hidden && "hidden",
       )}
     >
-      {/* Hidden on a fresh load; once the agent is working it slides in as an icon rail that
+      {/* Hidden until there's a dashboard or the agent is working; then it's an icon rail that
           expands on hover. */}
       <div
         className={cn(
           "h-full shrink-0 transition-[width] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]",
-          emptyThread && !open ? "w-0 overflow-hidden" : "w-14",
+          hideRail ? "w-0 overflow-hidden" : "w-14",
         )}
       >
         <DashboardSidebar onShowData={onShowData} collapsed />

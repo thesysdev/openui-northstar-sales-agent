@@ -113,7 +113,7 @@ export function DashboardCard({
       aria-pressed={isOpen}
       title={response && !isOpen ? "Open dashboard" : undefined}
       className={cn(
-        "group my-3 flex w-full max-w-md items-center gap-3 rounded-xl border bg-background py-3 pr-3 pl-4 text-left shadow-xs transition-colors duration-150",
+        "group my-3 flex w-full max-w-md items-center gap-3 rounded-xl border bg-background py-3 pr-3 pl-4 text-left transition-colors duration-150",
         "hover:border-foreground/12 disabled:cursor-default disabled:hover:border-border",
         "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
       )}
