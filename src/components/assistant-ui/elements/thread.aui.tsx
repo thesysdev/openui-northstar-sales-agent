@@ -10,6 +10,7 @@ import {
   ReasoningTrigger,
 } from "@/components/assistant-ui/elements/reasoning.aui";
 import { ToolFallback } from "@/components/assistant-ui/elements/tool-fallback.aui";
+import { Orb } from "@/components/orb";
 import {
   ToolGroupContent,
   ToolGroupRoot,
@@ -667,10 +668,9 @@ const AssistantMessage: FC = () => {
                 return (
                   <span
                     data-slot="aui_assistant-message-indicator"
-                    className="animate-pulse font-sans"
-                    aria-label="Assistant is working"
+                    className="inline-flex text-muted-foreground"
                   >
-                    {"●"}
+                    <Orb label="Assistant is working" />
                   </span>
                 );
               default:
