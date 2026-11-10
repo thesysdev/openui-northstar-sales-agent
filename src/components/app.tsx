@@ -197,7 +197,7 @@ function AgentView({ hidden, onShowData }: { hidden: boolean; onShowData: () => 
             // Keyed by the tab or card that opened it, so each opens a fresh panel that
             // slides in with the app's one easing.
             <div
-              key={open.key}
+              key={`${open.key}:${open.rev ?? 0}`}
               className="h-full animate-in fade-in slide-in-from-right-4 duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
             >
               <DashboardPanel
@@ -245,7 +245,7 @@ function AgentView({ hidden, onShowData }: { hidden: boolean; onShowData: () => 
           className="absolute top-2 right-3 z-20 flex h-7 items-center gap-1.5 rounded-md border bg-background px-2.5 text-sm text-muted-foreground transition-colors duration-150 animate-in fade-in duration-200 hover:bg-foreground/[0.03] hover:text-foreground"
         >
           <ChatCircle className="size-3.5" />
-          Chat
+          Edit with chat
         </button>
       )}
     </div>

@@ -5,13 +5,7 @@ import { cn } from "@/lib/utils";
 import { useAuiState, type ToolCallMessagePartProps } from "@assistant-ui/react";
 import { ThemeProvider } from "@openuidev/dashboard-library";
 import { LiveArtifactRenderer, useArtifactRenderer } from "@openuidev/react-ui/cloud";
-import {
-  ArrowClockwise,
-  ArrowRight,
-  CircleNotch,
-  Lightning,
-  Warning,
-} from "@phosphor-icons/react";
+import { ArrowClockwise, ArrowRight, CircleNotch, Lightning, Warning } from "@phosphor-icons/react";
 import {
   createContext,
   useCallback,
@@ -30,8 +24,9 @@ import { Notch } from "./notch";
 export type DashboardSource = { response: string } | { id: string };
 
 /** The dashboard in the side panel: the card or list row that opened it, and what to render.
- * `edit` marks an edit_dashboard result, so the panel says it is updating, not building. */
-type Open = DashboardSource & { key: string; edit?: boolean };
+ * `edit` marks an edit_dashboard result, so the panel says it is updating, not building.
+ * `rev` counts refreshes: bumping it remounts the panel, which runs its queries again. */
+type Open = DashboardSource & { key: string; edit?: boolean; rev?: number };
 
 const OpenDashboard = createContext<{
   open: Open | null;
@@ -105,40 +100,56 @@ export function DashboardCard({
       : [status?.type === "running" ? "Starting" : "Waiting", "busy"];
 
   return (
-    <button
-      type="button"
-      disabled={!response}
-      // Opens only: the panel always shows a dashboard, and opening another one replaces it.
-      onClick={() => response && !isOpen && setOpen({ key: toolCallId, response, edit })}
-      aria-pressed={isOpen}
-      title={response && !isOpen ? "Open dashboard" : undefined}
-      className={cn(
-        "group my-3 flex w-full max-w-md items-center gap-3 rounded-xl border bg-background py-3 pr-3 pl-4 text-left transition-colors duration-150",
-        "hover:border-foreground/12 disabled:cursor-default disabled:hover:border-border",
-        "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
-      )}
-    >
-      <span className="flex min-w-0 flex-1 flex-col gap-2.5">
-        <span className="truncate text-sm font-medium">{title}</span>
-        <span className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span className="inline-flex items-center rounded-md bg-foreground/[0.05] px-1.5 py-0.5">
-            Dashboard
-          </span>
-          <span className="inline-flex items-center gap-1.5 rounded-md bg-foreground/[0.05] px-1.5 py-0.5">
-            <StatusDot tone={tone} />
-            {label}
+    <div className="group relative my-3 w-full max-w-md">
+      <button
+        type="button"
+        disabled={!response}
+        // Opens only: the panel always shows a dashboard, and opening another one replaces it.
+        onClick={() => response && !isOpen && setOpen({ key: toolCallId, response, edit })}
+        aria-pressed={isOpen}
+        title={response && !isOpen ? "Open dashboard" : undefined}
+        className={cn(
+          "flex w-full items-center gap-3 rounded-xl border bg-background py-3 pr-13 pl-4 text-left transition-colors duration-150",
+          "hover:border-foreground/12 disabled:cursor-default disabled:hover:border-border",
+          isOpen && "cursor-default",
+          "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
+        )}
+      >
+        <span className="flex min-w-0 flex-1 flex-col gap-2.5">
+          <span className="truncate text-sm font-medium">{title}</span>
+          <span className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="inline-flex items-center rounded-md bg-foreground/[0.05] px-1.5 py-0.5">
+              Dashboard
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-md bg-foreground/[0.05] px-1.5 py-0.5">
+              <StatusDot tone={tone} />
+              {label}
+            </span>
           </span>
         </span>
-      </span>
-      {response && (
-        <span
-          aria-hidden
-          className="flex size-7 shrink-0 items-center justify-center rounded-full bg-foreground/[0.05] text-muted-foreground transition-colors duration-150 group-hover:text-foreground"
-        >
-          <ArrowRight className="size-3.5" />
-        </span>
-      )}
-    </button>
+      </button>
+      {/* Beside the card, not inside it, so the refresh can be its own button. While this
+          dashboard is open it reloads its live data; otherwise it's the card's open arrow. */}
+      {response &&
+        (isOpen ? (
+          <button
+            type="button"
+            onClick={() => open && setOpen({ ...open, rev: (open.rev ?? 0) + 1 })}
+            aria-label="Refresh dashboard"
+            title="Refresh dashboard"
+            className="absolute top-1/2 right-3 flex size-7 -translate-y-1/2 items-center justify-center rounded-full bg-foreground/[0.05] text-muted-foreground transition-colors duration-150 hover:bg-foreground/[0.08] hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+          >
+            <ArrowClockwise className="size-3.5" />
+          </button>
+        ) : (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute top-1/2 right-3 flex size-7 -translate-y-1/2 items-center justify-center rounded-full bg-foreground/[0.05] text-muted-foreground transition-colors duration-150 group-hover:text-foreground"
+          >
+            <ArrowRight className="size-3.5" />
+          </span>
+        ))}
+    </div>
   );
 }
 
