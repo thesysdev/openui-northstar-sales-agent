@@ -1,6 +1,6 @@
-# Northstar Sales Agent
+# Sales Dashboard
 
-A sales agent for Northstar, a fictional multi-brand retailer. Describe what you want to see ("Show me net sales vs target by region for last month") and it builds a live dashboard from a Neon Postgres database: KPIs, charts and tables whose numbers load fresh from the database every time the dashboard opens. Ask for a change in the chat and the same dashboard updates in place.
+A sales dashboard builder for Northstar, a fictional multi-brand retailer. Describe what you want to see ("Show me net sales vs target by region for last month") and it builds a live dashboard from a Neon Postgres database: KPIs, charts and tables whose numbers load fresh from the database every time the dashboard opens. Ask for a change in the chat and the same dashboard updates in place.
 
 Built on Next.js, [assistant-ui](https://www.assistant-ui.com) and [OpenUI](https://www.openui.com). Adapted from OpenUI's `assistant-ui-dashboards` example, with its npm/GitHub data tools replaced by SQL-backed sales tools.
 
@@ -45,7 +45,7 @@ Optional settings in `.env.local`:
 | `OPENUI_MODEL` | Chat model, as a Gateway `provider/model` id | `google/gemini-3.6-flash-free` |
 | `OPENUI_DASHBOARD_MODEL` | Model that builds dashboards | `anthropic/claude-sonnet-5.5` |
 | `OPENUI_FOLLOWUPS_MODEL` | Model that writes follow-up suggestions | `OPENUI_MODEL` |
-| `NEXT_PUBLIC_BASE_PATH` | Path the app is served under, such as `/demo/northstar`, read at build time | the root |
+| `NEXT_PUBLIC_BASE_PATH` | Path the app is served under, such as `/demo/sales-dashboard`, read at build time | the root |
 | `THESYS_BASE_URL` | Another OpenUI Cloud deployment | `https://api.thesys.dev` |
 
 Try:

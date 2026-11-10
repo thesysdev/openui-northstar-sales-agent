@@ -12,8 +12,7 @@ Given the conversation, reply with ONLY a JSON array of 3 very short follow-up r
 export async function POST(request: Request) {
   const { transcript } = (await request.json()) as { transcript?: string };
   const apiKey = process.env.THESYS_API_KEY;
-  // Failures answer with an error status, which the chat ignores, so the demo gateway on
-  // openui.com doesn't count them against the visitor's daily calls.
+  // Failures answer with an error status, which the chat ignores: follow-ups are a nicety.
   if (!transcript?.trim()) return Response.json({ suggestions: [] }, { status: 400 });
   if (!apiKey) return Response.json({ suggestions: [] }, { status: 500 });
 
