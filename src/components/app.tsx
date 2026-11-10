@@ -229,15 +229,16 @@ function AgentView({ hidden, onShowData }: { hidden: boolean; onShowData: () => 
         </div>
       </main>
       {/* The conversation panel. Collapsing animates its width; the inner column keeps a fixed
-          400px so nothing reflows while it slides. */}
+          400px so nothing reflows while it slides. On a phone both stop at the screen's width
+          less the 56px rail. */}
       <aside
         className={cn(
-          "relative shrink-0 overflow-hidden border-l transition-[width] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]",
+          "relative max-w-[calc(100vw-3.5rem)] shrink-0 overflow-hidden border-l transition-[width] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]",
           chatCollapsed ? "w-0 border-l-0" : "w-100",
           emptyThread && !open && "hidden",
         )}
       >
-        <div className="flex h-full w-100 flex-col">
+        <div className="flex h-full w-100 max-w-[calc(100vw-3.5rem)] flex-col">
           <button
             type="button"
             onClick={() => setChatCollapsed(true)}
