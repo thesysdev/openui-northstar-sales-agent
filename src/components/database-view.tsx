@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { TABLE_DESCRIPTIONS, TABLE_GROUPS, type TableName } from "@/lib/tables";
-import { Database, Table, X } from "@phosphor-icons/react";
+import { DatabaseIcon, TableIcon, XIcon } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import { withBase } from "../lib/base-path";
 
@@ -81,7 +81,7 @@ export function DatabaseView({ hidden, onBack }: { hidden: boolean; onBack: () =
     >
       <nav className="flex w-52 shrink-0 flex-col gap-0.5 overflow-y-auto border-r p-2">
         <RailRow
-          icon={Database}
+          icon={DatabaseIcon}
           active={selection === "overview"}
           onClick={() => setSelection("overview")}
         >
@@ -96,7 +96,7 @@ export function DatabaseView({ hidden, onBack }: { hidden: boolean; onBack: () =
             {group.tables.map((table) => (
               <RailRow
                 key={table}
-                icon={Table}
+                icon={TableIcon}
                 active={selection === table}
                 onClick={() => setSelection(table)}
                 count={summary?.counts[table]}
@@ -132,7 +132,7 @@ function RailRow({
   count,
   children,
 }: {
-  icon: typeof Table;
+  icon: typeof TableIcon;
   active: boolean;
   onClick: () => void;
   count?: number;
@@ -246,7 +246,7 @@ function Overview({
                 onClick={() => onOpen(table)}
                 className="flex w-full items-center gap-3 rounded-md px-2 py-2.5 text-left transition-colors duration-150 hover:bg-foreground/[0.02]"
               >
-                <Table className="size-3.5 shrink-0 text-[#107C41]" />
+                <TableIcon className="size-3.5 shrink-0 text-[#107C41]" />
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="text-sm">{table}</span>
                   <span className="truncate text-xs text-muted-foreground">

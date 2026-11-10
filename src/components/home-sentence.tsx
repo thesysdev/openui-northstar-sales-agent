@@ -2,21 +2,21 @@
 
 import { cn } from "@/lib/utils";
 import {
-  ArrowCounterClockwise,
-  ArrowRight,
-  ArrowUUpLeft,
-  Calendar,
-  Clock,
-  Infinity as InfinityIcon,
-  MapPin,
-  Megaphone,
-  Package,
-  Storefront,
-  Tag,
-  Target,
-  Trophy,
-  UsersThree,
-  Watch,
+  ArrowCounterClockwiseIcon,
+  ArrowRightIcon,
+  ArrowUUpLeftIcon,
+  CalendarIcon,
+  ClockIcon,
+  InfinityIcon,
+  MapPinIcon,
+  MegaphoneIcon,
+  PackageIcon,
+  StorefrontIcon,
+  TagIcon,
+  TargetIcon,
+  TrophyIcon,
+  UsersThreeIcon,
+  WatchIcon,
   type Icon,
 } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
@@ -37,22 +37,22 @@ type SlotName = "metric" | "split" | "range";
 
 const SLOTS: Record<SlotName, Option[]> = {
   metric: [
-    { label: "net sales vs target", icon: Target },
-    { label: "top products", icon: Trophy },
-    { label: "returns", icon: ArrowCounterClockwise },
-    { label: "customers", icon: UsersThree },
-    { label: "promotions", icon: Tag },
+    { label: "net sales vs target", icon: TargetIcon },
+    { label: "top products", icon: TrophyIcon },
+    { label: "returns", icon: ArrowCounterClockwiseIcon },
+    { label: "customers", icon: UsersThreeIcon },
+    { label: "promotions", icon: TagIcon },
   ],
   split: [
-    { label: "category", icon: Package },
-    { label: "region", icon: MapPin },
-    { label: "brand", icon: Storefront },
-    { label: "channel", icon: Megaphone },
+    { label: "category", icon: PackageIcon },
+    { label: "region", icon: MapPinIcon },
+    { label: "brand", icon: StorefrontIcon },
+    { label: "channel", icon: MegaphoneIcon },
   ],
   range: [
-    { label: "last month", icon: Clock },
-    { label: "last quarter", icon: Watch },
-    { label: "last year", icon: Calendar },
+    { label: "last month", icon: ClockIcon },
+    { label: "last quarter", icon: WatchIcon },
+    { label: "last year", icon: CalendarIcon },
     { label: "lifetime", icon: InfinityIcon },
   ],
 };
@@ -257,7 +257,7 @@ export function HomeSentence({
         className="group inline-flex items-center gap-[0.3em] rounded-[0.5em] bg-primary px-[0.5em] py-[0.15em] whitespace-nowrap text-primary-foreground transition-colors duration-150 hover:bg-primary/90"
       >
         Build dashboard
-        <ArrowRight
+        <ArrowRightIcon
           className="size-[0.75em] transition-transform duration-150 group-hover:translate-x-[0.12em] motion-reduce:transition-none"
           strokeWidth={2}
         />
@@ -272,7 +272,7 @@ export function HomeSentence({
         title="Start over"
         className="group ml-[0.35em] inline-flex items-center rounded-[0.5em] px-[0.3em] py-[0.32em] text-muted-foreground transition-colors duration-150 hover:bg-foreground/[0.03] hover:text-foreground"
       >
-        <ArrowUUpLeft
+        <ArrowUUpLeftIcon
           className="size-[0.75em] transition-transform duration-300 group-hover:-translate-x-[0.1em] motion-reduce:transition-none"
           strokeWidth={1.75}
         />

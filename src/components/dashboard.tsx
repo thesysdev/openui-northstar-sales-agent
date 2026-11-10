@@ -5,7 +5,13 @@ import { cn } from "@/lib/utils";
 import { useAuiState, type ToolCallMessagePartProps } from "@assistant-ui/react";
 import { ThemeProvider } from "@openuidev/dashboard-library";
 import { LiveArtifactRenderer, useArtifactRenderer } from "@openuidev/react-ui/cloud";
-import { ArrowClockwise, ArrowRight, CircleNotch, Lightning, Warning } from "@phosphor-icons/react";
+import {
+  ArrowClockwiseIcon,
+  ArrowRightIcon,
+  CircleNotchIcon,
+  LightningIcon,
+  WarningIcon,
+} from "@phosphor-icons/react";
 import {
   createContext,
   useCallback,
@@ -169,14 +175,14 @@ export function DashboardCard({
             title="Refresh dashboard"
             className="absolute top-1/2 right-3 flex size-7 -translate-y-1/2 items-center justify-center rounded-full bg-foreground/[0.05] text-muted-foreground transition-colors duration-150 hover:bg-foreground/[0.08] hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
           >
-            <ArrowClockwise className="size-3.5" />
+            <ArrowClockwiseIcon className="size-3.5" />
           </button>
         ) : (
           <span
             aria-hidden
             className="pointer-events-none absolute top-1/2 right-3 flex size-7 -translate-y-1/2 items-center justify-center rounded-full bg-foreground/[0.05] text-muted-foreground transition-colors duration-150 group-hover:text-foreground"
           >
-            <ArrowRight className="size-3.5" />
+            <ArrowRightIcon className="size-3.5" />
           </span>
         ))}
     </div>
@@ -350,9 +356,9 @@ function DashboardNotch({
           ? `${savings}% fewer tokens than HTML`
           : "";
   const icon = working ? (
-    <CircleNotch className="size-3 animate-spin motion-reduce:animate-none" />
+    <CircleNotchIcon className="size-3 animate-spin motion-reduce:animate-none" />
   ) : (
-    <Lightning weight="fill" className="size-3" />
+    <LightningIcon weight="fill" className="size-3" />
   );
   return <Notch show={working || savings !== null} icon={icon} label={label} />;
 }
@@ -365,7 +371,7 @@ function DashboardError() {
       role="alert"
       className="mb-4 flex items-start gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm"
     >
-      <Warning className="mt-0.5 size-4 shrink-0 text-destructive" />
+      <WarningIcon className="mt-0.5 size-4 shrink-0 text-destructive" />
       <div className="min-w-0 flex-1">
         <p className="font-medium">
           {error?.source === "query"
@@ -376,7 +382,7 @@ function DashboardError() {
       </div>
       {retry && (
         <Button variant="outline" size="sm" onClick={retry}>
-          <ArrowClockwise />
+          <ArrowClockwiseIcon />
           Try again
         </Button>
       )}
