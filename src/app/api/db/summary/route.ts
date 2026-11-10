@@ -27,10 +27,11 @@ export async function GET(request: NextRequest) {
   if (!visitor) return noVisitor();
   const summary = await cached("db:summary", 5 * 60_000, async () => {
     const [row] = await asVisitor(visitor, () => query(sql, [], request.signal));
+    // The provider and region only: the host name stays on the server, so the database's
+    // address isn't handed to every visitor.
     const host = process.env.DATABASE_URL?.match(/@([^/:?]+)/)?.[1] ?? "";
     return {
       ...row,
-      host,
       provider: host.includes("neon.tech") ? "Neon" : "Postgres",
       region: host.match(/[a-z]{2}-[a-z]+-\d/)?.[0] ?? "",
     };

@@ -10,7 +10,9 @@ export const runtime = "nodejs";
 // the bulkier format), with rendered HTML as the baseline instead of JSON. The browser sends
 // the dashboard's HTML; the program comes from OpenUI Cloud.
 
-const MAX_HTML = 2_000_000;
+// A dashboard's HTML with its chart internals collapsed is well under this. Counting tokens is CPU
+// work and the route needs no sign-in, so a bigger body is refused.
+const MAX_HTML = 300_000;
 
 export async function POST(request: NextRequest) {
   const visitor = readVisitorId(request);

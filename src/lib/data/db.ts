@@ -31,13 +31,15 @@ export async function query<T = Record<string, unknown>>(
     record({ ...event, rows: rows.length, ms: Date.now() - started });
     return rows;
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    record({ ...event, ms: Date.now() - started, error: message });
+    // Database errors can name its internals, so the server log keeps them and the browser (the
+    // dashboard and the activity strip) gets a plain message.
+    record({ ...event, ms: Date.now() - started, error: timeout.aborted ? "timed out" : "failed" });
     if (timeout.aborted) {
       throw new ToolExecutionError("The sales database didn't answer in time", "upstream_unavailable", 504);
     }
     if (signal.aborted) throw error;
-    throw new ToolExecutionError(`Sales database error: ${message}`, "upstream_error", 502);
+    console.error("Sales database query failed", error);
+    throw new ToolExecutionError("The sales database couldn't run this query", "upstream_error", 502);
   }
 }
 

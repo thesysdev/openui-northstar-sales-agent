@@ -349,8 +349,9 @@ export const salesTools = {
     async (args, signal) => {
       const { from, to } = await dateRange(args);
       const metric = oneOf(args.metric, ["net_sales", "units", "margin", "return_rate"], "net_sales");
-      const category = text(args.category).toLowerCase();
-      const brand = text(args.brand).toLowerCase();
+      // Names are short; anything longer can't match and would only bloat the cache key.
+      const category = text(args.category).toLowerCase().slice(0, 60);
+      const brand = text(args.brand).toLowerCase().slice(0, 60);
       const limit = int(args.limit, 10, 3, 25);
       return run("top-products", { from, to, metric, category, brand, limit }, async () => {
         const filters = `${category ? " AND lower(p.category) = $3" : ""}${brand ? ` AND lower(p.brand) = $${category ? 4 : 3}` : ""}`;

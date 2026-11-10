@@ -15,7 +15,6 @@ type Summary = {
   version: string;
   first_order: string;
   last_order: string;
-  host: string;
   provider: string;
   region: string;
 };
@@ -209,8 +208,7 @@ function Overview({
           </div>
           <p className="text-xs text-muted-foreground">
             {summary.region && <>{summary.region} · </>}PostgreSQL{" "}
-            {summary.version.split(".")[0]} · {formatBytes(totalBytes)} ·{" "}
-            {summary.host}
+            {summary.version.split(".")[0]} · {formatBytes(totalBytes)}
           </p>
         </div>
       </section>
