@@ -6,7 +6,7 @@ import {
   type ThreadHistoryAdapter,
 } from "@assistant-ui/react";
 import { createAssistantStream } from "assistant-stream";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 
 // The chat is yours to keep: this example keeps it in the browser's localStorage. Swap these
 // helpers for your own database to keep threads on your server. OpenUI Cloud only builds and
@@ -40,6 +40,54 @@ function write(key: string, value: unknown) {
 }
 
 const threads = () => read<Record<string, StoredThread>>("threads", {});
+
+/** Remembers `remoteId` as the chat of the dashboard `artifactId`. */
+export function rememberChatOf(artifactId: string, remoteId: string) {
+  write(`chat-of:${artifactId}`, remoteId);
+}
+
+/** Remembers the chat a create_dashboard result came from, by the dashboard it names. */
+export function rememberChat(response: string, remoteId: string) {
+  const artifactId = response.match(/artifact_id=(art_[A-Za-z0-9_-]+)/)?.[1];
+  if (artifactId) rememberChatOf(artifactId, remoteId);
+}
+
+/**
+ * The chat a dashboard was made in. A dashboard from before its chat was remembered is found in
+ * the stored chats, by the create_dashboard result that names it, and remembered then.
+ */
+function chatOf(artifactId: string): string | undefined {
+  const known = read<string | null>(`chat-of:${artifactId}`, null);
+  if (known && threads()[known]) return known;
+  const found = Object.values(threads())
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .find(({ remoteId }) =>
+      JSON.stringify(read(`messages:${remoteId}`, [])).includes(`artifact_id=${artifactId}`),
+    )?.remoteId;
+  if (found) write(`chat-of:${artifactId}`, found);
+  return found;
+}
+
+/**
+ * Opens the chat a dashboard was made in. A dashboard with no chat gets an empty one; the chat
+ * becomes its chat once you send a message there (OpenDashboardProvider).
+ */
+export function useOpenChatOf() {
+  const aui = useAui();
+  return useCallback(
+    (artifactId: string) => {
+      const remoteId = chatOf(artifactId);
+      const current = aui.threadListItem.getState().remoteId;
+      if (remoteId) {
+        if (remoteId !== current) aui.threads.switchToThread(remoteId);
+      } else if (current !== undefined) {
+        // A chat that hasn't sent anything yet has no id, and is empty already.
+        aui.threads.switchToNewThread();
+      }
+    },
+    [aui],
+  );
+}
 
 function updateThread(remoteId: string, change: Partial<StoredThread>) {
   const all = threads();
@@ -122,6 +170,7 @@ export const localThreadList: RemoteThreadListAdapter = {
   async unarchive(remoteId) {
     updateThread(remoteId, { status: "regular" });
   },
+  // A deleted chat's dashboards keep their entries; opening one then just shows the dashboard.
   async delete(remoteId) {
     const { [remoteId]: _, ...rest } = threads();
     write("threads", rest);

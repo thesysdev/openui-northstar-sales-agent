@@ -28,6 +28,7 @@ import {
   type CSSProperties,
 } from "react";
 import { useOpenDashboard } from "./dashboard";
+import { useOpenChatOf } from "./threads";
 
 // The Agent view's left rail: new dashboard on top, the user's dashboards, then the data
 // button. Collapsed it is a column of identical 36px squares centred in the 56px rail;
@@ -120,6 +121,17 @@ const RailItem = forwardRef<HTMLButtonElement, RailItemProps>(function RailItem(
   );
 });
 
+/**
+ * A list's dashboards as of its last finished load. The lists refresh whenever a dashboard
+ * finishes streaming, which includes opening one, and while one reloads it shows every cached
+ * dashboard in the cache's order, so the rail would shuffle and settle back.
+ */
+function useSettled<T>({ artifacts, isLoading }: { artifacts: T[]; isLoading: boolean }): T[] {
+  const settled = useRef<T[]>([]);
+  if (!isLoading) settled.current = artifacts;
+  return settled.current;
+}
+
 export function DashboardSidebar({
   onShowData,
   collapsed,
@@ -137,6 +149,7 @@ export function DashboardSidebar({
   const pinnedList = useArtifactList({ filter: { type: "dashboard", pinned: true } });
   const recent = useArtifactList({ filter: { type: "dashboard", pinned: false, limit: 20 } });
   const { open, setOpen, openId, saved } = useOpenDashboard();
+  const openChatOf = useOpenChatOf();
 
   // A dashboard joins the list once it's generated and saved.
   const refreshPinned = pinnedList.refresh;
@@ -147,7 +160,7 @@ export function DashboardSidebar({
     refreshRecent();
   }, [saved, refreshPinned, refreshRecent]);
 
-  const allRows = [...pinnedList.artifacts, ...recent.artifacts];
+  const allRows = [...useSettled(pinnedList), ...useSettled(recent)];
   const rows = showAll ? allRows : allRows.slice(0, 5);
   const olderCount = allRows.length - 5;
 
@@ -202,9 +215,11 @@ export function DashboardSidebar({
                   background: `color-mix(in srgb, ${color} 14%, var(--background))`,
                   color,
                 }}
-                onClick={() =>
-                  !active && setOpen({ key: `side:${artifact.id}`, id: artifact.id })
-                }
+                onClick={() => {
+                  if (active) return;
+                  setOpen({ key: `side:${artifact.id}`, id: artifact.id });
+                  openChatOf(artifact.id);
+                }}
               />
             );
           })}

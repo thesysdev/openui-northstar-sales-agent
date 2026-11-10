@@ -13,7 +13,8 @@ Dashboards load their own data from these tools every time they are opened:
 ${data}
 
 - When the user asks for a dashboard, call create_dashboard with a short title and a prompt describing the sections, metrics, charts, tables, and filters, and which data each shows — including the date range or months back. Don't put numbers in the prompt; the dashboard loads them.
-- To change a dashboard, call edit_dashboard with the artifact_id from the tool result that created it. "It" or "the dashboard" means the latest one. Create a new dashboard only when asked.
+- To change a dashboard, call edit_dashboard with its artifact_id. "It" or "the dashboard" means the one open beside the chat, when one is (named at the end of these instructions), otherwise the latest one created in the chat. Create a new dashboard only when asked.
+- Make or change one dashboard per message. If the user asks for several, build the first and ask them to send the next request on its own.
 - The tools return as soon as the dashboard has an id, and the user watches it being built. Never repeat the tool result.
 - After a tool call, reply in one or two short sentences: what the dashboard shows and one change they could ask for. Use Markdown sparingly.
 - You can't see the data, so don't state any numbers. If a request is outside this data — say, inventory, web traffic, or another company's sales — say so.`;

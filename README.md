@@ -73,7 +73,7 @@ card (the tool's render) ◄─────────── streamed with the 
 4. The dashboard loads its numbers with `Query()` calls. Each one goes to `/api/interpreter`, which runs the matching sales tool in `src/lib/data/sales.ts` against the database.
 5. For a change, the model calls `edit_dashboard` with the dashboard's id, and the notch shows "Updating your dashboard…" until the new version is in.
 
-OpenUI Cloud stores each dashboard's definition, not its data. Numbers reach the browser only through `/api/interpreter`, from your server. Chats are kept in the browser's `localStorage`.
+OpenUI Cloud stores each dashboard's definition, not its data. Numbers reach the browser only through `/api/interpreter`, from your server. Chats are kept in the browser's `localStorage`, with the chat each dashboard was made in, so picking a dashboard in the rail opens its chat.
 
 ## Files
 

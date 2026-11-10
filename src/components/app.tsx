@@ -19,7 +19,12 @@ import { ChatCircle, CircleNotch, SidebarSimple, X } from "@phosphor-icons/react
 import { useEffect, useRef, useState } from "react";
 import { withBase } from "../lib/base-path";
 import toolkit from "../lib/toolkit";
-import { DashboardPanel, OpenDashboardProvider, useOpenDashboard } from "./dashboard";
+import {
+  DashboardPanel,
+  OpenDashboardProvider,
+  openDashboardId,
+  useOpenDashboard,
+} from "./dashboard";
 import { DashboardSidebar } from "./dashboard-sidebar";
 import { Notch } from "./notch";
 import { ShaderBackdrop } from "./shader-backdrop";
@@ -29,8 +34,11 @@ import { localThreadList } from "./threads";
 
 const token = withBase("/api/frontend-token");
 
-// Threads are cloned from this transport, each posting to /api/chat.
-const transport = new AssistantChatTransport({ api: withBase("/api/chat") });
+// Threads are cloned from this transport, each posting to /api/chat with the open dashboard.
+const transport = new AssistantChatTransport({
+  api: withBase("/api/chat"),
+  body: () => ({ dashboard: openDashboardId() }),
+});
 
 /** A message's text, plus a note for each dashboard it created, for the follow-ups model. */
 function describe(message: ThreadMessage): string {
@@ -107,14 +115,16 @@ function Scopes({ ask }: { ask?: string }) {
 /** Sends the home page's sentence (?ask=…) as the first message, once. */
 function AutoAsk({ text }: { text: string }) {
   const aui = useAui();
+  // Until the thread list loads, the thread is a placeholder that can't send.
+  const ready = useAuiState((state) => !state.threads.isLoading && !state.thread.isLoading);
   const sent = useRef(false);
   useEffect(() => {
-    if (sent.current) return;
+    if (!ready || sent.current) return;
     sent.current = true;
     (aui.thread as unknown as { append: (message: string) => void }).append(text);
     // Drop ?ask so a reload doesn't ask again.
     window.history.replaceState(null, "", withBase("/app"));
-  }, [text, aui]);
+  }, [ready, text, aui]);
   return null;
 }
 

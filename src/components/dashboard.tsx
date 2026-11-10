@@ -20,6 +20,7 @@ import {
 import { library } from "../library";
 import { Notch } from "./notch";
 import { withBase } from "../lib/base-path";
+import { rememberChat, rememberChatOf } from "./threads";
 
 /** What the renderer streams: a tool call's result, as is, or for a dashboard from the list, its id. */
 export type DashboardSource = { response: string } | { id: string };
@@ -47,11 +48,30 @@ const OpenDashboard = createContext<{
   onSaved: () => {},
 });
 
+let openNow: string | null = null;
+
+/** The open dashboard's artifact id, for the chat's requests: "it" in a message means this one. */
+export const openDashboardId = () => openNow;
+
 export function OpenDashboardProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState<Open | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [saved, setSaved] = useState(0);
   const onSaved = useCallback(() => setSaved((count) => count + 1), []);
+  useEffect(() => {
+    openNow = openId;
+  }, [openId]);
+
+  // A chat that starts while a dashboard picked from the list is open becomes that dashboard's
+  // chat, so picking the dashboard again opens it. A chat gets its id when it sends its first message.
+  const chatId = useAuiState((state) => state.threadListItem.remoteId);
+  const chatBefore = useRef(chatId);
+  useEffect(() => {
+    if (chatBefore.current === undefined && chatId && open && "id" in open) {
+      rememberChatOf(open.id, chatId);
+    }
+    chatBefore.current = chatId;
+  }, [chatId, open]);
   return (
     <OpenDashboard.Provider value={{ open, setOpen, openId, setOpenId, saved, onSaved }}>
       {children}
@@ -84,10 +104,19 @@ export function DashboardCard({
   const response = !isError && typeof result === "string" ? result : undefined;
   const edit = toolName === "edit_dashboard";
 
-  // Opens once, when the result arrives, so opening another dashboard afterwards sticks.
+  // So the dashboard list can open this chat for the dashboard it made.
+  const chatId = useAuiState((state) => state.threadListItem.remoteId);
+  useEffect(() => {
+    if (!edit && response && chatId) rememberChat(response, chatId);
+  }, [edit, response, chatId]);
+
+  // Opens once, when the result arrives while you watch, so opening another dashboard afterwards
+  // sticks. A card that loads with its result, from a chat's history, doesn't open: the panel
+  // keeps the dashboard that was picked.
+  const live = useRef(!response);
   const opened = useRef(false);
   useEffect(() => {
-    if (!response || opened.current) return;
+    if (!response || opened.current || !live.current) return;
     opened.current = true;
     setOpen({ key: toolCallId, response, edit });
   }, [response, toolCallId, edit, setOpen]);
