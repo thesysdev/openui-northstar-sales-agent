@@ -109,8 +109,8 @@ export async function POST(request: NextRequest) {
 
 /**
  * The tools, each running for `visitor`: the model calls them while the reply streams. Each
- * dashboard is a full generation on the API key, and the demo gateway on openui.com counts a
- * message once, so one message makes or changes one dashboard; a further call fails.
+ * dashboard is a full generation on the API key and anyone can send messages, so one message
+ * makes or changes one dashboard; a further call fails.
  */
 function forVisitor(tools: ToolSet, visitor: string): ToolSet {
   let calls = 0;
