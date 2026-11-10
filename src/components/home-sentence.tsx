@@ -304,7 +304,7 @@ export function HomeSentence({
         className="pointer-events-none absolute top-1/4 left-1/2 size-80 -translate-x-1/2 rounded-full bg-foreground/[0.04] blur-3xl"
       />
       <div className="flex flex-1 items-center justify-center">
-        <h1 className="text-[clamp(1.25rem,1.9vw,2rem)] leading-relaxed font-medium tracking-tight max-sm:flex max-sm:w-full max-sm:flex-col max-sm:items-stretch max-sm:gap-3 sm:whitespace-nowrap">
+        <h1 className="text-[clamp(1.25rem,1.9vw,2rem)] leading-relaxed font-medium tracking-tight max-sm:flex max-sm:w-full max-sm:flex-col max-sm:items-stretch max-sm:gap-3 sm:text-center sm:leading-loose sm:text-balance">
           {/* Each segment is a row on phones and dissolves into the one-line sentence on sm+. */}
           <span className="max-sm:flex max-sm:w-full max-sm:flex-col max-sm:items-stretch max-sm:gap-2 sm:contents">
             Show me {chip("metric")}
