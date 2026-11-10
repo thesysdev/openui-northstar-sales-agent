@@ -79,9 +79,9 @@ const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 const day = (date: Date) => date.toISOString().slice(0, 10);
 
 /**
- * The first and last day with orders (YYYY-MM-DD), checked once an hour. Date ranges count
- * back from the last day, not from today: if the data stops growing, dashboards keep showing
- * its latest months instead of running out of data.
+ * The first and last day with orders (YYYY-MM-DD), and the end of the last whole month,
+ * checked once an hour. Date ranges count back from these, not from today: if the data stops
+ * growing, dashboards keep showing its latest months instead of running out of data.
  */
 export const dataDays = () =>
   cached("db:days", 60 * 60_000, async () => {
@@ -92,19 +92,35 @@ export const dataDays = () =>
       new AbortController().signal,
     );
     const today = day(new Date());
-    return { first: row?.first ?? today, last: row?.last ?? today };
+    const first = row?.first ?? today;
+    const last = row?.last ?? today;
+    return { first, last, monthEnd: lastMonthEnd(first, last) };
   });
 
 /**
+ * The last day of the last whole month with data: `last` when it ends its month, otherwise the
+ * end of the month before, so monthly series don't end in a few days' stub. `last` when the data
+ * doesn't span a whole month.
+ */
+function lastMonthEnd(first: string, last: string): string {
+  const date = new Date(`${last}T00:00:00Z`);
+  if (new Date(date.getTime() + 86_400_000).getUTCDate() === 1) return last;
+  const end = day(new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 0)));
+  return end >= first ? end : last;
+}
+
+/**
  * A lenient date range within the data: explicit `from`/`to` (YYYY-MM-DD) when given,
- * otherwise `months` back (default `defaultMonths`, clamped to 1–24) from its last day.
+ * otherwise `months` back (default `defaultMonths`, clamped to 1–24) from its last day. With
+ * `wholeMonths`, for monthly series, it's that many whole months up to the last whole month.
  */
 export async function dateRange(
   args: Record<string, unknown>,
   defaultMonths = 6,
+  { wholeMonths = false } = {},
 ): Promise<{ from: string; to: string }> {
-  const { first, last } = await dataDays();
-  let to = ISO_DAY.test(text(args.to)) ? text(args.to) : last;
+  const { first, last, monthEnd } = await dataDays();
+  let to = ISO_DAY.test(text(args.to)) ? text(args.to) : wholeMonths ? monthEnd : last;
   if (to > last) to = last;
   let from: string;
   if (ISO_DAY.test(text(args.from))) {
@@ -112,9 +128,13 @@ export async function dateRange(
   } else {
     const months = int(args.months, defaultMonths, 1, 24);
     const start = new Date(`${to}T00:00:00Z`);
-    start.setUTCMonth(start.getUTCMonth() - months);
-    start.setUTCDate(start.getUTCDate() + 1);
-    from = day(start);
+    if (wholeMonths) {
+      from = day(new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() - months + 1, 1)));
+    } else {
+      start.setUTCMonth(start.getUTCMonth() - months);
+      start.setUTCDate(start.getUTCDate() + 1);
+      from = day(start);
+    }
   }
   if (from > to) [from, to] = [to, from];
   // A range that reaches past the data is cut to it.
