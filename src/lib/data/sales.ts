@@ -36,7 +36,19 @@ const INTERVALS = ["day", "week", "month"] as const;
 const TREND_DIMS = ["none", "region", "category", "brand", "channel", "device"] as const;
 const BREAKDOWN_DIMS = Object.keys(DIMENSIONS) as Dimension[];
 
+// A dashboard's date filter (DateRangeFilter or PeriodPicker) holds a string, which the program
+// can't turn into months or dates, so every tool also takes that string as is.
+const rangeParam = {
+  range: z
+    .string()
+    .optional()
+    .describe(
+      'The dashboard\'s date filter value, passed as is: a preset ("1m", "3m", "6m", "12m", "24m", "30d", "90d", "ytd", "lifetime") or a custom range "YYYY-MM-DD..YYYY-MM-DD". When set, it replaces months, from, and to.',
+    ),
+};
+
 const rangeParams = {
+  ...rangeParam,
   months: z
     .number()
     .int()
@@ -52,6 +64,35 @@ const rangeParams = {
     .optional()
     .describe("End date YYYY-MM-DD, default the last day of data (the last whole month's end for monthly series)"),
 };
+
+/**
+ * The arguments with `range` (a date filter's value) read into months or from/to: "3m" is 3
+ * months back, "30d" 30 days, "ytd" this year, "lifetime" all the data, and "2026-09-08..2026-10-15"
+ * those dates. Without a `range` it reads as before.
+ */
+async function withRange(args: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const value = text(args.range).toLowerCase().replace(/\s+/g, "");
+  if (!value) return args;
+  const custom = value.match(/^(\d{4}-\d{2}-\d{2})\.\.(\d{4}-\d{2}-\d{2})$/);
+  if (custom) return { ...args, from: custom[1], to: custom[2] };
+  const { first, last } = await dataDays();
+  if (/^(lifetime|all|alltime|max)$/.test(value)) return { ...args, from: first, to: last };
+  if (value === "ytd") return { ...args, from: `${last.slice(0, 4)}-01-01`, to: last };
+  // "3m", "30d", "1y", "last_quarter", "last-month", "6months"…
+  const preset = value.match(
+    /^(?:last[_-]?)?(\d+)?[_-]?(days?|weeks?|months?|quarters?|years?|d|w|m|q|y)$/,
+  );
+  if (!preset) return args;
+  const count = Number(preset[1] ?? 1);
+  const unit = preset[2]![0];
+  if (unit === "d" || unit === "w") {
+    const start = new Date(`${last}T00:00:00Z`);
+    start.setUTCDate(start.getUTCDate() - (unit === "d" ? count : count * 7) + 1);
+    return { ...args, from: start.toISOString().slice(0, 10), to: last };
+  }
+  const months = unit === "m" ? count : unit === "q" ? count * 3 : count * 12;
+  return { ...args, months: Math.min(24, Math.max(1, months)), from: undefined, to: undefined };
+}
 
 // The slice a dashboard's filters narrow every number to. Each is optional; empty means all.
 const SLICE_KEYS = ["region", "category", "brand", "channel"] as const;
@@ -119,7 +160,7 @@ export const salesTools = {
       change: { net_sales_pct: 6.4, orders_pct: 5.2, aov_pct: 1.1 },
     },
     async (args, signal) => {
-      const { from, to } = await dateRange(args);
+      const { from, to } = await dateRange(await withRange(args));
       const prev = previousRange(from, to);
       const slice = readSlice(args);
       return run("overview", { from, to, ...slice }, async () => {
@@ -227,7 +268,7 @@ export const salesTools = {
     async (args, signal) => {
       const interval = oneOf(args.interval, INTERVALS, "month");
       const groupBy = oneOf(args.group_by, TREND_DIMS, "none");
-      const { from, to } = await dateRange(args, 6, { wholeMonths: interval === "month" });
+      const { from, to } = await dateRange(await withRange(args), 6, { wholeMonths: interval === "month" });
       const slice = readSlice(args);
       return run("trend", { from, to, interval, groupBy, ...slice }, async () => {
         const dim = groupBy === "none" ? "'All'" : DIMENSIONS[groupBy as Dimension].sql;
@@ -305,7 +346,7 @@ export const salesTools = {
       ],
     },
     async (args, signal) => {
-      const { from, to } = await dateRange(args);
+      const { from, to } = await dateRange(await withRange(args));
       const dimension = oneOf(args.dimension, BREAKDOWN_DIMS, "category");
       const limit = int(args.limit, 10, 3, 25);
       const slice = readSlice(args);
@@ -395,7 +436,7 @@ export const salesTools = {
       ],
     },
     async (args, signal) => {
-      const { from, to } = await dateRange(args);
+      const { from, to } = await dateRange(await withRange(args));
       const metric = oneOf(args.metric, ["net_sales", "units", "margin", "return_rate"], "net_sales");
       const limit = int(args.limit, 10, 3, 25);
       const slice = readSlice(args);
@@ -484,7 +525,7 @@ export const salesTools = {
     },
     async (args, signal) => {
       const by = oneOf(args.by, ["reason", "category", "month"], "reason");
-      const { from, to } = await dateRange(args, 6, { wholeMonths: by === "month" });
+      const { from, to } = await dateRange(await withRange(args), 6, { wholeMonths: by === "month" });
       const slice = readSlice(args);
       return run("returns", { from, to, by, ...slice }, async () => {
         const dim = {
@@ -550,6 +591,7 @@ export const salesTools = {
         .enum(["business", "region", "category"])
         .default("business")
         .describe("business: one row per month; region/category: one row per month and scope"),
+      ...rangeParam,
       months: z.number().int().min(1).max(24).default(6).describe("How many months back, 1 to 24"),
       region: sliceParams.region,
       category: sliceParams.category,
@@ -570,8 +612,23 @@ export const salesTools = {
       // filter matching the scope wins.
       if (scope === "business") scope = region ? "region" : category ? "category" : "business";
       const only = scope === "region" ? region : scope === "category" ? category : "";
-      const months = int(args.months, 6, 1, 24);
       const { monthEnd } = await dataDays();
+      // Targets are monthly up to the last whole month: a date filter's range counts as the whole
+      // months from its start to there (a range ending earlier still ends at the last whole month).
+      const ranged = await withRange(args);
+      const start = /^\d{4}-\d{2}-\d{2}$/.test(text(ranged.from)) ? text(ranged.from) : "";
+      const months = start
+        ? Math.min(
+            24,
+            Math.max(
+              1,
+              (Number(monthEnd.slice(0, 4)) - Number(start.slice(0, 4))) * 12 +
+                Number(monthEnd.slice(5, 7)) -
+                Number(start.slice(5, 7)) +
+                1,
+            ),
+          )
+        : int(ranged.months, 6, 1, 24);
       return run("targets", { scope, months, monthEnd, only }, async () => {
         const dim = { business: "'ALL'", region: "o.shipping_region", category: "p.category" }[
           scope
@@ -653,7 +710,7 @@ export const salesTools = {
       ],
     },
     async (args, signal) => {
-      const { from, to } = await dateRange(args, 12, { wholeMonths: true });
+      const { from, to } = await dateRange(await withRange(args), 12, { wholeMonths: true });
       const slice = readSlice(args);
       return run("customers", { from, to, ...slice }, async () => {
         const filter = sliceWhere(slice, 3);
@@ -722,7 +779,7 @@ export const salesTools = {
       ],
     },
     async (args, signal) => {
-      const { from, to } = await dateRange(args);
+      const { from, to } = await dateRange(await withRange(args));
       const slice = readSlice(args);
       return run("promotions", { from, to, ...slice }, async () => {
         const filter = sliceWhere(slice, 3);
