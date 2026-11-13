@@ -20,7 +20,7 @@ export default defineToolkit({
         .string()
         .min(1)
         .describe(
-          "What to build: the sections, metrics, charts, and tables, and which data each shows. The dashboard is built from this alone.",
+          "What to build: the filters (with their starting values), sections, metrics, charts, and tables, which data each shows, and which filters each one follows. The dashboard is built from this alone.",
         ),
     }),
     execute: ({ title, prompt }, { abortSignal }) =>

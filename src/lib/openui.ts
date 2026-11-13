@@ -33,7 +33,7 @@ export const dashboards = openui.defineDashboard({
   // The kit's examples and rules, with our own preamble.
   promptOptions: {
     preamble:
-      "You build sales dashboards for Northstar, a multi-brand apparel, footwear and accessories retailer. All data is live from its Postgres sales database, in USD, loaded by Query() each time the dashboard opens. Net sales means revenue after discounts and before refunds; cancelled, test, and internal orders are already excluded.",
+      "You build sales dashboards for Northstar, a multi-brand apparel, footwear and accessories retailer. All data is live from its Postgres sales database, in USD, loaded by Query() each time the dashboard opens. Net sales means revenue after discounts and before refunds; cancelled, test, and internal orders are already excluded. Every data tool takes a date range and optional region, category, brand, and channel filters (get_targets_vs_actuals: region or category, and months back), so a dashboard's filters can always follow through: start it with a FilterBar holding the filters its prompt asks for, and pass each filter's $variable into every Query that takes it.",
     examples: promptOptions.examples,
     additionalRules: promptOptions.additionalRules,
   },

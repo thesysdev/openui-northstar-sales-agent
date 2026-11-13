@@ -60,6 +60,19 @@ const SLOTS: Record<SlotName, Option[]> = {
 // Region stays the default split even though it sits second in the fan.
 const DEFAULTS: Record<SlotName, number> = { metric: 0, split: 1, range: 0 };
 
+// Splits a metric's data doesn't have: targets are set for the whole business, each region and
+// each category, never per brand or channel.
+const UNAVAILABLE_SPLITS: Record<string, string[]> = {
+  "net sales vs target": ["brand", "channel"],
+};
+
+/** Whether `index` can be picked in `slot` alongside the rest of `picked`. */
+function available(slot: SlotName, index: number, picked: Record<SlotName, number>): boolean {
+  if (slot !== "split") return true;
+  const metric = SLOTS.metric[picked.metric]!.label;
+  return !UNAVAILABLE_SPLITS[metric]?.includes(SLOTS.split[index]!.label);
+}
+
 // Each slot's fan is tinted along one gradient from its top row to its bottom row, so it
 // always reads the same way whatever is selected; the selected chip carries the centre
 // color. Chips mix the tint into the page background, so they stay opaque.
@@ -156,7 +169,7 @@ export function HomeSentence({
     // The selected option stays in place; the others split evenly, half above, half below.
     const others = SLOTS[slot]
       .map((option, index) => ({ ...option, index }))
-      .filter((option) => option.index !== current);
+      .filter((option) => option.index !== current && available(slot, option.index, picked));
     const above = Math.ceil(others.length / 2);
     const items: FanItem[] = others.map((option, position) => {
       const offset = position < above ? position - above : position - above + 1;
@@ -219,7 +232,12 @@ export function HomeSentence({
                 key={option.label}
                 type="button"
                 onClick={() => {
-                  setPicked((previous) => ({ ...previous, [slot]: option.index }));
+                  setPicked((previous) => {
+                    const next = { ...previous, [slot]: option.index };
+                    // A metric without the picked split falls back to the default one.
+                    if (!available("split", next.split, next)) next.split = DEFAULTS.split;
+                    return next;
+                  });
                   setOpen(null);
                 }}
                 style={

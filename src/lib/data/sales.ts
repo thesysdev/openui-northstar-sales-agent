@@ -53,6 +53,45 @@ const rangeParams = {
     .describe("End date YYYY-MM-DD, default the last day of data (the last whole month's end for monthly series)"),
 };
 
+// The slice a dashboard's filters narrow every number to. Each is optional; empty means all.
+const SLICE_KEYS = ["region", "category", "brand", "channel"] as const;
+type Slice = Record<(typeof SLICE_KEYS)[number], string>;
+
+const sliceParams = {
+  region: z.string().optional().describe("Filter: West, South, Midwest, or Northeast. Empty for all."),
+  category: z.string().optional().describe("Filter: accessories, apparel, or footwear. Empty for all."),
+  brand: z.string().optional().describe("Filter by brand name. Empty for all."),
+  channel: z
+    .string()
+    .optional()
+    .describe("Filter by channel (traffic source), such as paid_search or email. Empty for all."),
+};
+
+/** One filter value, lower-cased; "", "all", "All regions" and the like mean no filter. */
+function sliceValue(value: unknown): string {
+  const picked = text(value).toLowerCase().slice(0, 60);
+  return /^(all|any)\b/.test(picked) ? "" : picked;
+}
+
+function readSlice(args: Record<string, unknown>): Slice {
+  return Object.fromEntries(SLICE_KEYS.map((key) => [key, sliceValue(args[key])])) as Slice;
+}
+
+/**
+ * SQL for a slice, numbering its parameters from `first`: ` AND lower(o.shipping_region) = $3…`,
+ * and whether it needs the products join (category and brand live on products).
+ */
+function sliceWhere(slice: Slice, first: number): { sql: string; params: string[]; products: boolean } {
+  const params: string[] = [];
+  let sql = "";
+  for (const key of SLICE_KEYS) {
+    if (!slice[key]) continue;
+    params.push(slice[key]);
+    sql += ` AND lower(${DIMENSIONS[key].sql}) = $${first + params.length - 1}`;
+  }
+  return { sql, params, products: Boolean(slice.category || slice.brand) };
+}
+
 /** Period expression and label format for a trend interval. */
 const periodExpr = (interval: (typeof INTERVALS)[number], column: string) =>
   interval === "month"
@@ -61,8 +100,8 @@ const periodExpr = (interval: (typeof INTERVALS)[number], column: string) =>
 
 export const salesTools = {
   get_sales_overview: dataTool(
-    "Headline KPIs for a date range, with the previous range of the same length for comparison: net_sales (USD, after discounts, before refunds), orders, units, aov (average order value), discount_amount and discount_rate_pct, gross_margin_pct, refund_amount, returned_units and refund_rate_pct (refunds processed in the range as a share of net sales), plus previous {net_sales, orders, aov} and change {net_sales_pct, orders_pct, aov_pct}.",
-    z.object({ ...rangeParams }),
+    "Headline KPIs for a date range, with the previous range of the same length for comparison: net_sales (USD, after discounts, before refunds), orders, units, aov (average order value), discount_amount and discount_rate_pct, gross_margin_pct, refund_amount, returned_units and refund_rate_pct (refunds processed in the range as a share of net sales), plus previous {net_sales, orders, aov} and change {net_sales_pct, orders_pct, aov_pct}. Optional region, category, brand and channel filters narrow every number to that slice.",
+    z.object({ ...rangeParams, ...sliceParams }),
     {
       from: "2026-05-10",
       to: "2026-11-09",
@@ -82,7 +121,11 @@ export const salesTools = {
     async (args, signal) => {
       const { from, to } = await dateRange(args);
       const prev = previousRange(from, to);
-      return run("overview", { from, to }, async () => {
+      const slice = readSlice(args);
+      return run("overview", { from, to, ...slice }, async () => {
+        const filter = sliceWhere(slice, 4);
+        const joins = filter.products ? PRODUCTS_JOIN : "";
+        const params = [prev.from, from, to, ...filter.params];
         const [sales, refunds] = await Promise.all([
           query(
             `SELECT (o.placed_at >= $2::date) AS current,
@@ -92,20 +135,20 @@ export const salesTools = {
                     ${money("oi.line_discount_amount")} AS discount_amount,
                     ${money("oi.line_list_amount")} AS list_amount,
                     ${money("oi.unit_cogs_at_sale * oi.ordered_qty")} AS cogs
-             FROM ${ORDERS_JOIN}
-             WHERE ${SALES_WHERE} AND o.placed_at >= $1::date AND o.placed_at < $3::date + 1
+             FROM ${ORDERS_JOIN}${joins}
+             WHERE ${SALES_WHERE} AND o.placed_at >= $1::date AND o.placed_at < $3::date + 1${filter.sql}
              GROUP BY 1`,
-            [prev.from, from, to],
+            params,
             signal,
           ),
           query(
             `SELECT (r.processed_at >= $2::date) AS current,
                     ${money("r.product_refund_amount")} AS refund_amount,
                     coalesce(sum(r.returned_qty), 0)::int AS returned_units
-             FROM ${RETURNS_JOIN}
-             WHERE ${SALES_WHERE} AND r.processed_at >= $1::date AND r.processed_at < $3::date + 1
+             FROM ${RETURNS_JOIN}${joins}
+             WHERE ${SALES_WHERE} AND r.processed_at >= $1::date AND r.processed_at < $3::date + 1${filter.sql}
              GROUP BY 1`,
-            [prev.from, from, to],
+            params,
             signal,
           ),
         ]);
@@ -151,11 +194,12 @@ export const salesTools = {
   ),
 
   get_sales_trend: dataTool(
-    "Net sales (USD) and orders over time, per day, week, or month, as aligned series: the period labels (weeks are labelled by their Monday), and one series per group with net_sales and orders per period, total, and change_pct (last period vs the one before). group_by none gives a single 'All' series; region, category, brand, channel, or device gives one series each. Monthly series end at the last whole month; day and week series run to the last day of data, so their first and last periods can be partial.",
+    "Net sales (USD) and orders over time, per day, week, or month, as aligned series: the period labels (weeks are labelled by their Monday), and one series per group with net_sales and orders per period, total, and change_pct (last period vs the one before). group_by none gives a single 'All' series; region, category, brand, channel, or device gives one series each. Monthly series end at the last whole month; day and week series run to the last day of data, so their first and last periods can be partial. Optional region, category, brand and channel filters narrow every series to that slice.",
     z.object({
       interval: z.enum(INTERVALS).default("month").describe("day, week, or month"),
       group_by: z.enum(TREND_DIMS).default("none"),
       ...rangeParams,
+      ...sliceParams,
     }),
     {
       from: "2026-08-01",
@@ -184,18 +228,22 @@ export const salesTools = {
       const interval = oneOf(args.interval, INTERVALS, "month");
       const groupBy = oneOf(args.group_by, TREND_DIMS, "none");
       const { from, to } = await dateRange(args, 6, { wholeMonths: interval === "month" });
-      return run("trend", { from, to, interval, groupBy }, async () => {
+      const slice = readSlice(args);
+      return run("trend", { from, to, interval, groupBy, ...slice }, async () => {
         const dim = groupBy === "none" ? "'All'" : DIMENSIONS[groupBy as Dimension].sql;
+        const filter = sliceWhere(slice, 3);
         const joins =
-          groupBy !== "none" && DIMENSIONS[groupBy as Dimension].products ? PRODUCTS_JOIN : "";
+          filter.products || (groupBy !== "none" && DIMENSIONS[groupBy as Dimension].products)
+            ? PRODUCTS_JOIN
+            : "";
         const rows = await query(
           `SELECT ${periodExpr(interval, "o.placed_at")} AS period, ${dim} AS name,
                   ${money("oi.line_booked_amount")} AS net_sales,
                   count(DISTINCT o.order_id)::int AS orders
            FROM ${ORDERS_JOIN}${joins}
-           WHERE ${SALES_WHERE} AND o.placed_at >= $1::date AND o.placed_at < $2::date + 1
+           WHERE ${SALES_WHERE} AND o.placed_at >= $1::date AND o.placed_at < $2::date + 1${filter.sql}
            GROUP BY 1, 2 ORDER BY 1, 2`,
-          [from, to],
+          [from, to, ...filter.params],
           signal,
         );
         const periods = [...new Set(rows.map((row) => row.period as string))].sort();
@@ -230,11 +278,12 @@ export const salesTools = {
   ),
 
   get_sales_breakdown: dataTool(
-    "Net sales (USD) broken down by one dimension — region, state, category, subcategory, brand, channel (traffic source), or device — for a date range, sorted by net sales: each row's net_sales, share_pct, orders, units, gross_margin_pct, refund_amount and returned_units (returns processed in the range), and return_rate_pct (returned units as a share of units sold).",
+    "Net sales (USD) broken down by one dimension — region, state, category, subcategory, brand, channel (traffic source), or device — for a date range, sorted by net sales: each row's net_sales, share_pct, orders, units, gross_margin_pct, refund_amount and returned_units (returns processed in the range), and return_rate_pct (returned units as a share of units sold). Optional region, category, brand and channel filters narrow the rows to that slice.",
     z.object({
       dimension: z.enum(BREAKDOWN_DIMS as [Dimension, ...Dimension[]]).default("category"),
       limit: z.number().int().min(3).max(25).default(10).describe("How many rows, 3 to 25"),
       ...rangeParams,
+      ...sliceParams,
     }),
     {
       from: "2026-05-10",
@@ -259,9 +308,12 @@ export const salesTools = {
       const { from, to } = await dateRange(args);
       const dimension = oneOf(args.dimension, BREAKDOWN_DIMS, "category");
       const limit = int(args.limit, 10, 3, 25);
-      return run("breakdown", { from, to, dimension, limit }, async () => {
+      const slice = readSlice(args);
+      return run("breakdown", { from, to, dimension, limit, ...slice }, async () => {
         const { sql: dim, products } = DIMENSIONS[dimension];
-        const joins = products ? PRODUCTS_JOIN : "";
+        const filter = sliceWhere(slice, 3);
+        const joins = products || filter.products ? PRODUCTS_JOIN : "";
+        const params = [from, to, ...filter.params];
         const [sales, refunds] = await Promise.all([
           query(
             `SELECT ${dim} AS name, ${money("oi.line_booked_amount")} AS net_sales,
@@ -269,18 +321,18 @@ export const salesTools = {
                     coalesce(sum(oi.ordered_qty), 0)::int AS units,
                     ${money("oi.unit_cogs_at_sale * oi.ordered_qty")} AS cogs
              FROM ${ORDERS_JOIN}${joins}
-             WHERE ${SALES_WHERE} AND o.placed_at >= $1::date AND o.placed_at < $2::date + 1
+             WHERE ${SALES_WHERE} AND o.placed_at >= $1::date AND o.placed_at < $2::date + 1${filter.sql}
              GROUP BY 1 ORDER BY 2 DESC`,
-            [from, to],
+            params,
             signal,
           ),
           query(
             `SELECT ${dim} AS name, ${money("r.product_refund_amount")} AS refund_amount,
                     coalesce(sum(r.returned_qty), 0)::int AS returned_units
              FROM ${RETURNS_JOIN}${joins}
-             WHERE ${SALES_WHERE} AND r.processed_at >= $1::date AND r.processed_at < $2::date + 1
+             WHERE ${SALES_WHERE} AND r.processed_at >= $1::date AND r.processed_at < $2::date + 1${filter.sql}
              GROUP BY 1`,
-            [from, to],
+            params,
             signal,
           ),
         ]);
@@ -316,16 +368,12 @@ export const salesTools = {
   ),
 
   get_top_products: dataTool(
-    "Top products (styles) for a date range ranked by net_sales, units, margin (gross margin %), or return_rate: each row's name, brand, category, subcategory, net_sales (USD), units, orders, gross_margin_pct, refund_amount, and return_rate_pct (returned units / units sold, returns processed in the range). Optional category and brand filters.",
+    "Top products (styles) for a date range ranked by net_sales, units, margin (gross margin %), or return_rate: each row's name, brand, category, subcategory, net_sales (USD), units, orders, gross_margin_pct, refund_amount, and return_rate_pct (returned units / units sold, returns processed in the range). Optional region, category, brand and channel filters.",
     z.object({
       metric: z.enum(["net_sales", "units", "margin", "return_rate"]).default("net_sales"),
-      category: z
-        .string()
-        .optional()
-        .describe("Filter: accessories, apparel, or footwear. Empty for all."),
-      brand: z.string().optional().describe("Filter by brand name. Empty for all."),
       limit: z.number().int().min(3).max(25).default(10).describe("How many products, 3 to 25"),
       ...rangeParams,
+      ...sliceParams,
     }),
     {
       from: "2026-05-10",
@@ -349,15 +397,11 @@ export const salesTools = {
     async (args, signal) => {
       const { from, to } = await dateRange(args);
       const metric = oneOf(args.metric, ["net_sales", "units", "margin", "return_rate"], "net_sales");
-      // Names are short; anything longer can't match and would only bloat the cache key.
-      const category = text(args.category).toLowerCase().slice(0, 60);
-      const brand = text(args.brand).toLowerCase().slice(0, 60);
       const limit = int(args.limit, 10, 3, 25);
-      return run("top-products", { from, to, metric, category, brand, limit }, async () => {
-        const filters = `${category ? " AND lower(p.category) = $3" : ""}${brand ? ` AND lower(p.brand) = $${category ? 4 : 3}` : ""}`;
-        const params: unknown[] = [from, to];
-        if (category) params.push(category);
-        if (brand) params.push(brand);
+      const slice = readSlice(args);
+      return run("top-products", { from, to, metric, limit, ...slice }, async () => {
+        const { sql: filters, params: values } = sliceWhere(slice, 3);
+        const params = [from, to, ...values];
         const [sales, refunds] = await Promise.all([
           query(
             `SELECT p.style_id, p.name, p.brand, p.category, p.subcategory,
@@ -419,10 +463,11 @@ export const salesTools = {
   ),
 
   get_returns_overview: dataTool(
-    "Returns and refunds for a date range (by the date the return was processed): total refund_amount (USD), returned_units, return_rate_pct (returned units / units sold in the range), restocked_pct, and rows split by reason, category, or month — each with returned_units, refund_amount, and share_pct of returned units.",
+    "Returns and refunds for a date range (by the date the return was processed): total refund_amount (USD), returned_units, return_rate_pct (returned units / units sold in the range), restocked_pct, and rows split by reason, category, or month — each with returned_units, refund_amount, and share_pct of returned units. Optional region, category, brand and channel filters narrow every number to that slice.",
     z.object({
       by: z.enum(["reason", "category", "month"]).default("reason"),
       ...rangeParams,
+      ...sliceParams,
     }),
     {
       from: "2026-05-10",
@@ -440,37 +485,41 @@ export const salesTools = {
     async (args, signal) => {
       const by = oneOf(args.by, ["reason", "category", "month"], "reason");
       const { from, to } = await dateRange(args, 6, { wholeMonths: by === "month" });
-      return run("returns", { from, to, by }, async () => {
+      const slice = readSlice(args);
+      return run("returns", { from, to, by, ...slice }, async () => {
         const dim = {
           reason: "coalesce(r.return_reason, 'unknown')",
           category: "p.category",
           month: "to_char(date_trunc('month', r.processed_at), 'YYYY-MM')",
         }[by];
-        const joins = by === "category" ? PRODUCTS_JOIN : "";
+        const filter = sliceWhere(slice, 3);
+        const sliceJoins = filter.products ? PRODUCTS_JOIN : "";
+        const joins = by === "category" || filter.products ? PRODUCTS_JOIN : "";
+        const params = [from, to, ...filter.params];
         const [rows, totals, sold] = await Promise.all([
           query(
             `SELECT ${dim} AS name, coalesce(sum(r.returned_qty), 0)::int AS returned_units,
                     ${money("r.product_refund_amount")} AS refund_amount
              FROM ${RETURNS_JOIN}${joins}
-             WHERE ${SALES_WHERE} AND r.processed_at >= $1::date AND r.processed_at < $2::date + 1
+             WHERE ${SALES_WHERE} AND r.processed_at >= $1::date AND r.processed_at < $2::date + 1${filter.sql}
              GROUP BY 1 ORDER BY ${by === "month" ? "1" : "2 DESC"}`,
-            [from, to],
+            params,
             signal,
           ),
           query(
             `SELECT coalesce(sum(r.returned_qty), 0)::int AS returned_units,
                     ${money("r.product_refund_amount")} AS refund_amount,
                     coalesce(sum(r.returned_qty) FILTER (WHERE r.restocked_flag), 0)::int AS restocked
-             FROM ${RETURNS_JOIN}
-             WHERE ${SALES_WHERE} AND r.processed_at >= $1::date AND r.processed_at < $2::date + 1`,
-            [from, to],
+             FROM ${RETURNS_JOIN}${sliceJoins}
+             WHERE ${SALES_WHERE} AND r.processed_at >= $1::date AND r.processed_at < $2::date + 1${filter.sql}`,
+            params,
             signal,
           ),
           query(
             `SELECT coalesce(sum(oi.ordered_qty), 0)::int AS units
-             FROM ${ORDERS_JOIN}
-             WHERE ${SALES_WHERE} AND o.placed_at >= $1::date AND o.placed_at < $2::date + 1`,
-            [from, to],
+             FROM ${ORDERS_JOIN}${sliceJoins}
+             WHERE ${SALES_WHERE} AND o.placed_at >= $1::date AND o.placed_at < $2::date + 1${filter.sql}`,
+            params,
             signal,
           ),
         ]);
@@ -495,13 +544,15 @@ export const salesTools = {
   ),
 
   get_targets_vs_actuals: dataTool(
-    "Monthly net sales against the approved sales targets, for the whole business or per region or category: one row per month and scope with target (USD), actual (net sales minus refunds processed that month), and attainment_pct. Months run up to the last whole month of data.",
+    "Monthly net sales against the approved sales targets, for the whole business or per region or category: one row per month and scope with target (USD), actual (net sales minus refunds processed that month), and attainment_pct. Months run up to the last whole month of data. Targets exist only for the whole business, each region and each category, never per brand or channel, so it filters by region or category only: a region filter gives that region's rows (scope region), a category filter that category's (scope category).",
     z.object({
       scope: z
         .enum(["business", "region", "category"])
         .default("business")
         .describe("business: one row per month; region/category: one row per month and scope"),
       months: z.number().int().min(1).max(24).default(6).describe("How many months back, 1 to 24"),
+      region: sliceParams.region,
+      category: sliceParams.category,
     }),
     {
       scope: "region",
@@ -511,10 +562,17 @@ export const salesTools = {
       ],
     },
     async (args, signal) => {
-      const scope = oneOf(args.scope, ["business", "region", "category"], "business");
+      let scope = oneOf(args.scope, ["business", "region", "category"], "business");
+      const region = sliceValue(args.region);
+      const category = sliceValue(args.category);
+      // A filter needs rows at its level: a whole-business query with a region (or category)
+      // filter reads that region's targets. Targets have no region × category level, so the
+      // filter matching the scope wins.
+      if (scope === "business") scope = region ? "region" : category ? "category" : "business";
+      const only = scope === "region" ? region : scope === "category" ? category : "";
       const months = int(args.months, 6, 1, 24);
       const { monthEnd } = await dataDays();
-      return run("targets", { scope, months, monthEnd }, async () => {
+      return run("targets", { scope, months, monthEnd, only }, async () => {
         const dim = { business: "'ALL'", region: "o.shipping_region", category: "p.category" }[
           scope
         ];
@@ -556,7 +614,9 @@ export const salesTools = {
         );
         return {
           scope,
-          rows: targets.map((row) => {
+          rows: targets
+            .filter((row) => !only || String(row.scope).toLowerCase() === only)
+            .map((row) => {
             const key = `${row.month}|${row.scope}`;
             const actual = round2((booked.get(key) ?? 0) - (refunded.get(key) ?? 0));
             return {
@@ -573,8 +633,8 @@ export const salesTools = {
   ),
 
   get_customer_insights: dataTool(
-    "Customers per month for a date range: new_customers (first-ever order that month), returning_customers (ordered that month, first order earlier), orders and net_sales (USD) — plus new customers in the whole range by acquisition channel. Good for new-vs-returning and acquisition dashboards.",
-    z.object({ ...rangeParams }),
+    "Customers per month for a date range: new_customers (first-ever order that month), returning_customers (ordered that month, first order earlier), orders and net_sales (USD) — plus new customers in the whole range by acquisition channel. Good for new-vs-returning and acquisition dashboards. Optional region, category, brand and channel filters count only customers' orders in that slice (new customers: those whose first order was in it).",
+    z.object({ ...rangeParams, ...sliceParams }),
     {
       from: "2026-05-10",
       to: "2026-11-09",
@@ -594,7 +654,11 @@ export const salesTools = {
     },
     async (args, signal) => {
       const { from, to } = await dateRange(args, 12, { wholeMonths: true });
-      return run("customers", { from, to }, async () => {
+      const slice = readSlice(args);
+      return run("customers", { from, to, ...slice }, async () => {
+        const filter = sliceWhere(slice, 3);
+        const joins = filter.products ? PRODUCTS_JOIN : "";
+        const params = [from, to, ...filter.params];
         const [months, channels] = await Promise.all([
           query(
             `SELECT to_char(date_trunc('month', o.placed_at), 'YYYY-MM') AS month,
@@ -606,22 +670,35 @@ export const salesTools = {
                     )::int AS returning_customers,
                     count(DISTINCT o.order_id)::int AS orders,
                     ${money("oi.line_booked_amount")} AS net_sales
-             FROM ${ORDERS_JOIN}
-             WHERE ${SALES_WHERE} AND o.placed_at >= $1::date AND o.placed_at < $2::date + 1
+             FROM ${ORDERS_JOIN}${joins}
+             WHERE ${SALES_WHERE} AND o.placed_at >= $1::date AND o.placed_at < $2::date + 1${filter.sql}
              GROUP BY 1 ORDER BY 1`,
-            [from, to],
+            params,
             signal,
           ),
-          query(
-            `SELECT coalesce(c.acquisition_channel, 'unknown') AS channel,
-                    count(*)::int AS customers
-             FROM retail.customers c
-             WHERE NOT c.is_internal
-               AND c.first_ever_order_at >= $1::date AND c.first_ever_order_at < $2::date + 1
-             GROUP BY 1 ORDER BY 2 DESC`,
-            [from, to],
-            signal,
-          ),
+          filter.params.length
+            ? // New customers whose first order (the same day as their first-ever order) is in the slice.
+              query(
+                `SELECT coalesce(c.acquisition_channel, 'unknown') AS channel,
+                        count(DISTINCT c.customer_id)::int AS customers
+                 FROM ${ORDERS_JOIN}${joins}
+                 WHERE ${SALES_WHERE}
+                   AND c.first_ever_order_at >= $1::date AND c.first_ever_order_at < $2::date + 1
+                   AND o.placed_at::date = c.first_ever_order_at::date${filter.sql}
+                 GROUP BY 1 ORDER BY 2 DESC`,
+                params,
+                signal,
+              )
+            : query(
+                `SELECT coalesce(c.acquisition_channel, 'unknown') AS channel,
+                        count(*)::int AS customers
+                 FROM retail.customers c
+                 WHERE NOT c.is_internal
+                   AND c.first_ever_order_at >= $1::date AND c.first_ever_order_at < $2::date + 1
+                 GROUP BY 1 ORDER BY 2 DESC`,
+                [from, to],
+                signal,
+              ),
         ]);
         return { from, to, months, new_by_channel: channels };
       });
@@ -629,8 +706,8 @@ export const salesTools = {
   ),
 
   get_promotions_performance: dataTool(
-    "Promotion performance for a date range, by promo code: orders that used it, discount_amount given (USD), net_sales of those orders, and discount_share_pct (discount as a share of those orders' pre-discount revenue). Sorted by discount amount.",
-    z.object({ ...rangeParams }),
+    "Promotion performance for a date range, by promo code: orders that used it, discount_amount given (USD), net_sales of those orders, and discount_share_pct (discount as a share of those orders' pre-discount revenue). Sorted by discount amount. Optional region, category, brand and channel filters narrow every number to that slice (category and brand: the discounts and sales of those products' lines).",
+    z.object({ ...rangeParams, ...sliceParams }),
     {
       from: "2026-05-10",
       to: "2026-11-09",
@@ -646,7 +723,11 @@ export const salesTools = {
     },
     async (args, signal) => {
       const { from, to } = await dateRange(args);
-      return run("promotions", { from, to }, async () => {
+      const slice = readSlice(args);
+      return run("promotions", { from, to, ...slice }, async () => {
+        const filter = sliceWhere(slice, 3);
+        const joins = filter.products ? PRODUCTS_JOIN : "";
+        const params = [from, to, ...filter.params];
         const [discounts, sales] = await Promise.all([
           query(
             `SELECT pr.code, count(DISTINCT op.order_id)::int AS orders,
@@ -654,10 +735,13 @@ export const salesTools = {
              FROM retail.order_promotions op
              JOIN retail.promotions pr ON pr.promotion_id = op.promotion_id
              JOIN retail.orders o ON o.order_id = op.order_id
-             JOIN retail.customers c ON c.customer_id = o.customer_id
-             WHERE ${SALES_WHERE} AND o.placed_at >= $1::date AND o.placed_at < $2::date + 1
+             JOIN retail.customers c ON c.customer_id = o.customer_id${
+               // Discounts are allocated to order items: a product filter keeps those items' share.
+               filter.products ? `\n             JOIN retail.order_items oi ON oi.order_item_id = op.order_item_id${joins}` : ""
+             }
+             WHERE ${SALES_WHERE} AND o.placed_at >= $1::date AND o.placed_at < $2::date + 1${filter.sql}
              GROUP BY 1 ORDER BY 3 DESC`,
-            [from, to],
+            params,
             signal,
           ),
           query(
@@ -666,10 +750,10 @@ export const salesTools = {
              JOIN retail.promotions pr ON pr.promotion_id = x.promotion_id
              JOIN retail.orders o ON o.order_id = x.order_id
              JOIN retail.customers c ON c.customer_id = o.customer_id
-             JOIN retail.order_items oi ON oi.order_id = o.order_id
-             WHERE ${SALES_WHERE} AND o.placed_at >= $1::date AND o.placed_at < $2::date + 1
+             JOIN retail.order_items oi ON oi.order_id = o.order_id${joins}
+             WHERE ${SALES_WHERE} AND o.placed_at >= $1::date AND o.placed_at < $2::date + 1${filter.sql}
              GROUP BY 1`,
-            [from, to],
+            params,
             signal,
           ),
         ]);
