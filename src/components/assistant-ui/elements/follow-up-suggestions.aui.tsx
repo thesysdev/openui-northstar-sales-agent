@@ -2,18 +2,18 @@
 
 import { AuiIf, ThreadPrimitive, useAuiState } from "@assistant-ui/react";
 import {
-  ArrowCounterClockwise,
-  ArrowRight,
-  ChartBar,
-  MapPin,
-  Megaphone,
-  Package,
-  Storefront,
-  Tag,
-  Target,
-  TrendUp,
-  Trophy,
-  UsersThree,
+  ArrowCounterClockwiseIcon,
+  ArrowRightIcon,
+  ChartBarIcon,
+  MapPinIcon,
+  MegaphoneIcon,
+  PackageIcon,
+  StorefrontIcon,
+  TagIcon,
+  TargetIcon,
+  TrendUpIcon,
+  TrophyIcon,
+  UsersThreeIcon,
   type Icon,
 } from "@phosphor-icons/react";
 import { useRef, useState, type CSSProperties, type FC } from "react";
@@ -21,20 +21,20 @@ import { useRef, useState, type CSSProperties, type FC } from "react";
 // Each follow-up gets the icon of what it's about, matching the home page's chips where they
 // overlap. First match wins, so the more specific words come first.
 const TOPIC_ICONS: [RegExp, Icon][] = [
-  [/\b(return|refund)/i, ArrowCounterClockwise],
-  [/\b(target|goal|attainment|quota)/i, Target],
-  [/\b(trend|over time|month|week|daily|growth|forecast)/i, TrendUp],
-  [/\b(region|state|city|location|west|south|midwest|northeast)/i, MapPin],
-  [/\b(channel|online|store vs|marketing|campaign)/i, Megaphone],
-  [/\bbrand/i, Storefront],
-  [/\b(customer|shopper|buyer|segment|cohort)/i, UsersThree],
-  [/\b(discount|promo|price|margin)/i, Tag],
-  [/\b(top|best|rank|leader)/i, Trophy],
-  [/\b(category|categories|product|sku|item)/i, Package],
+  [/\b(return|refund)/i, ArrowCounterClockwiseIcon],
+  [/\b(target|goal|attainment|quota)/i, TargetIcon],
+  [/\b(trend|over time|month|week|daily|growth|forecast)/i, TrendUpIcon],
+  [/\b(region|state|city|location|west|south|midwest|northeast)/i, MapPinIcon],
+  [/\b(channel|online|store vs|marketing|campaign)/i, MegaphoneIcon],
+  [/\bbrand/i, StorefrontIcon],
+  [/\b(customer|shopper|buyer|segment|cohort)/i, UsersThreeIcon],
+  [/\b(discount|promo|price|margin)/i, TagIcon],
+  [/\b(top|best|rank|leader)/i, TrophyIcon],
+  [/\b(category|categories|product|sku|item)/i, PackageIcon],
 ];
 
 function topicIcon(text: string): Icon {
-  return TOPIC_ICONS.find(([pattern]) => pattern.test(text))?.[1] ?? ChartBar;
+  return TOPIC_ICONS.find(([pattern]) => pattern.test(text))?.[1] ?? ChartBarIcon;
 }
 
 // Follow-up suggestions as a card stack above the composer: at rest the next question sits
@@ -99,7 +99,7 @@ const FollowupStack: FC = () => {
             >
               <TopicIcon className="size-3.5 shrink-0 text-muted-foreground" />
               <span className="min-w-0 flex-1 truncate text-left">{text}</span>
-              <ArrowRight className="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-[opacity,transform] duration-150 group-hover:translate-x-0.5 group-hover:opacity-100" />
+              <ArrowRightIcon className="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-[opacity,transform] duration-150 group-hover:translate-x-0.5 group-hover:opacity-100" />
             </ThreadPrimitive.Suggestion>
           );
         })}

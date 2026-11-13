@@ -4,19 +4,19 @@ import { cn } from "@/lib/utils";
 import { ThreadListPrimitive } from "@assistant-ui/react";
 import { useArtifactList } from "@openuidev/react-ui/cloud";
 import {
-  ArrowCounterClockwise,
-  CaretDown,
-  CaretUp,
-  ChartLine,
-  Database,
-  MapPin,
-  Package,
-  Plus,
-  SquaresFour,
-  Tag,
-  Target,
-  Trophy,
-  UsersThree,
+  ArrowCounterClockwiseIcon,
+  CaretDownIcon,
+  CaretUpIcon,
+  ChartLineIcon,
+  DatabaseIcon,
+  MapPinIcon,
+  PackageIcon,
+  PlusIcon,
+  SquaresFourIcon,
+  TagIcon,
+  TargetIcon,
+  TrophyIcon,
+  UsersThreeIcon,
   type Icon,
 } from "@phosphor-icons/react";
 import {
@@ -40,18 +40,18 @@ import { useOpenChatOf } from "./threads";
 // the slot at the same 16px, so icons never move when the rail opens.
 
 const KINDS: { match: RegExp; icon: Icon }[] = [
-  { match: /target/i, icon: Target },
-  { match: /top\s.*product|best.?seller/i, icon: Trophy },
-  { match: /product/i, icon: Package },
-  { match: /return|refund/i, icon: ArrowCounterClockwise },
-  { match: /customer/i, icon: UsersThree },
-  { match: /promo/i, icon: Tag },
-  { match: /region|state/i, icon: MapPin },
-  { match: /sales|revenue|trend|aov|margin/i, icon: ChartLine },
+  { match: /target/i, icon: TargetIcon },
+  { match: /top\s.*product|best.?seller/i, icon: TrophyIcon },
+  { match: /product/i, icon: PackageIcon },
+  { match: /return|refund/i, icon: ArrowCounterClockwiseIcon },
+  { match: /customer/i, icon: UsersThreeIcon },
+  { match: /promo/i, icon: TagIcon },
+  { match: /region|state/i, icon: MapPinIcon },
+  { match: /sales|revenue|trend|aov|margin/i, icon: ChartLineIcon },
 ];
 
 const iconFor = (title: string): Icon =>
-  KINDS.find(({ match }) => match.test(title))?.icon ?? SquaresFour;
+  KINDS.find(({ match }) => match.test(title))?.icon ?? SquaresFourIcon;
 
 // One gradient runs down the whole list, sky blue to bluish purple; each row samples its
 // position rather than carrying a color of its own.
@@ -191,7 +191,7 @@ export function DashboardSidebar({
       >
         <ThreadListPrimitive.New asChild>
           <RailItem
-            icon={Plus}
+            icon={PlusIcon}
             label="New dashboard"
             expanded={expanded}
             bordered
@@ -225,7 +225,7 @@ export function DashboardSidebar({
           })}
           {olderCount > 0 && (
             <RailItem
-              icon={showAll ? CaretUp : CaretDown}
+              icon={showAll ? CaretUpIcon : CaretDownIcon}
               label={showAll ? "Hide older" : `Show older (${olderCount})`}
               expanded={expanded}
               className="text-muted-foreground hover:text-foreground"
@@ -236,7 +236,7 @@ export function DashboardSidebar({
           {rows.length === 0 && expanded && (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 px-4 text-center animate-in fade-in duration-200">
               <span className="flex size-8 items-center justify-center rounded-lg border bg-background shadow-xs">
-                <SquaresFour className="size-4 text-muted-foreground" />
+                <SquaresFourIcon className="size-4 text-muted-foreground" />
               </span>
               <p className="text-xs text-muted-foreground">
                 {recent.isLoading ? "Loading…" : "Dashboards you create show up here."}
@@ -246,7 +246,7 @@ export function DashboardSidebar({
         </div>
 
         <RailItem
-          icon={Database}
+          icon={DatabaseIcon}
           label="View connected data"
           expanded={expanded}
           bordered
