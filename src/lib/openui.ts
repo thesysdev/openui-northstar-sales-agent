@@ -2,6 +2,7 @@ import { promptOptions } from "@openuidev/dashboard-library";
 import { OpenUIClient } from "@openuidev/server";
 import spec from "../generated/spec.json";
 import { dataTools } from "./data";
+import { examples } from "./examples";
 import { currentVisitor } from "./visitor";
 
 // OpenUI Cloud, or your own deployment of it, such as a local stack at http://localhost:3102.
@@ -30,18 +31,12 @@ export const dashboards = openui.defineDashboard({
   library: spec,
   model: process.env.OPENUI_DASHBOARD_MODEL || "anthropic/claude-sonnet-5.5",
   tools: dataTools,
-  // The kit's examples and rules, with our own preamble.
+  // The kit's rules, with our own preamble and examples.
   promptOptions: {
-    preamble: [
+    preamble:
       "You build sales dashboards for Northstar, a multi-brand apparel, footwear and accessories retailer. All data is live from its Postgres sales database, in USD, loaded by Query() each time the dashboard opens. Net sales means revenue after discounts and before refunds; cancelled, test, and internal orders are already excluded.",
-      // Without the real values a filter offers made-up ones ("Europe"), and picking one empties the dashboard.
-      'The data has exactly these values, and a filter offers only these, spelled the same, with an "All" option whose value is "": regions West, South, Midwest, Northeast; categories apparel, footwear, accessories; brands Northstar, Northstar Footwear, Northstar Studio, N. Active, North & Co., Weekend Supply; channels direct, email, organic_search, paid_search, paid_social, referral, affiliate.',
-      'Every data tool takes `range`, a date filter\'s value as is ("1m", "3m", "12m", "lifetime", "ytd", "30d", or a custom "YYYY-MM-DD..YYYY-MM-DD"), and optional region, category, brand, and channel filters (get_targets_vs_actuals: region or category only). So a dashboard\'s filters always follow through: start it with a FilterBar holding the filters its prompt asks for, and pass each filter\'s $variable into every Query that takes it (the headline overview, targets, breakdowns, trends, and tables alike), the date filter\'s as range: $dateRange. Never write a fixed months or from/to into a Query when the dashboard has a date filter.',
-      "get_targets_vs_actuals returns rows (one per month and scope, for trends over months), totals (one per scope over the whole range, for a bar or table per region or category), and total (the headline target, actual, and attainment). A chart or table per region or category reads totals, never rows. get_sales_overview's previous and change are null when there's no whole earlier period to compare with; pass them on as they are.",
-      "A dashboard split by a dimension (a bar per region, say) still keeps that dimension's filter in its FilterBar: load the split with one Query that takes the filter, never one Query per value with the value written in, so picking a value narrows every card to it.",
-      "The data is always live: never call it sample, example, or placeholder data.",
-    ].join(" "),
-    examples: promptOptions.examples,
+    // Ours, written with the sales tools, in place of the kit's generic ones.
+    examples,
     additionalRules: promptOptions.additionalRules,
   },
 });
