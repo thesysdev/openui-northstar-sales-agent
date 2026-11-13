@@ -70,7 +70,7 @@ card (the tool's render) ◄─────────── streamed with the 
 1. The chat sends the thread to `/api/chat`. That route streams a reply from OpenUI Gateway with two tools, `create_dashboard` and `edit_dashboard`.
 2. `create_dashboard` runs on the server and starts generating the dashboard in OpenUI Cloud. It returns as soon as the dashboard has an id.
 3. The tool's card appears in the chat and opens the dashboard in the centre pane. `LiveArtifactRenderer` then streams the dashboard as it's generated.
-4. The dashboard loads its numbers with `Query()` calls. Each one goes to `/api/interpreter`, which runs the matching sales tool in `src/lib/data/sales.ts` against the database.
+4. The dashboard loads its numbers with `Query()` calls. Each one goes to `/api/interpreter`, which runs the matching sales tool in `src/lib/data/sales.ts` against the database. Every tool takes the same arguments for the dashboard's filters (`range`, `region`, `category`, `brand`, `channel`), so each card follows the filter bar.
 5. For a change, the model calls `edit_dashboard` with the dashboard's id, and the notch shows "Updating your dashboard…" until the new version is in.
 
 OpenUI Cloud stores each dashboard's definition, not its data. Numbers reach the browser only through `/api/interpreter`, from your server. Chats are kept in the browser's `localStorage`, with the chat each dashboard was made in, so picking a dashboard in the rail opens its chat.
@@ -80,10 +80,12 @@ OpenUI Cloud stores each dashboard's definition, not its data. Numbers reach the
 | File | Purpose |
 | --- | --- |
 | `src/lib/data/sales.ts`, `db.ts` | SQL-backed sales tools: KPIs, trends, breakdowns, top products, returns, targets vs actuals, customers, promotions |
+| `src/lib/data/filters.ts` | What dashboards filter by: the regions, categories, brands and channels in the data, and the date presets |
 | `src/lib/openui.ts` | `OpenUIClient`, the dashboard definition and base URL |
 | `src/lib/visitor.ts`, `src/proxy.ts` | Each browser's anonymous visitor id, which owns its dashboards |
 | `src/lib/base-path.ts` | The base path, for hand-written URLs |
 | `src/lib/toolkit.tsx` | `create_dashboard` and `edit_dashboard`: schema, `execute`, `render` |
+| `src/lib/filter-bar.ts`, `examples.ts` | The filter bar and layout `create_dashboard` asks for, and the example dashboards the builder learns from |
 | `src/lib/prompt.ts` | Chat instructions and the data dashboards can show |
 | `src/app/page.tsx`, `src/components/home-sentence.tsx` | Home page and the sentence builder |
 | `src/components/app.tsx` | Runtime, providers, and the three-pane layout |

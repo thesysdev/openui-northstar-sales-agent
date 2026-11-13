@@ -3,6 +3,8 @@
 import { defineToolkit } from "@assistant-ui/react";
 import { z } from "zod";
 import { DashboardCard } from "../components/dashboard";
+import { FILTER_NAMES, RANGE_VALUES } from "./data/filters";
+import { dashboardBrief } from "./filter-bar";
 import { dashboards, userId } from "./openui";
 
 // The chat model's tools. `execute` runs on this server (the "use generative" compiler keeps it,
@@ -13,18 +15,41 @@ import { dashboards, userId } from "./openui";
 export default defineToolkit({
   create_dashboard: {
     description:
-      "Create a live sales dashboard. It loads its numbers live from the Neon sales database every time it is opened, so describe which data to show and how — sections, metrics, charts, tables, filters, and date ranges — without numbers. Returns right away while the dashboard is generated.",
+      "Create a live sales dashboard. It loads its numbers live from the Neon sales database every time it is opened, so describe what to show (sections, metrics, charts, tables) without numbers. Returns right away while the dashboard is generated.",
     parameters: z.object({
-      title: z.string().min(1).describe('A short title, such as "October sales".'),
+      title: z
+        .string()
+        .min(1)
+        .describe('A short title without the period, such as "Net sales by region".'),
       prompt: z
         .string()
         .min(1)
         .describe(
-          "What to build: the sections, metrics, charts, and tables, and which data each shows. The dashboard is built from this alone.",
+          "What to show, in this order: 3 to 5 headline numbers; a chart comparing what the user split by; a chart of how it moved over time; a detail table. Say which data each shows. Leave out the period and the filters: `range` and `filters` set them, and every part of the dashboard follows them.",
+        ),
+      range: z
+        .enum(RANGE_VALUES)
+        .optional()
+        .describe(
+          'The period the dashboard opens on, which the reader can change: "1m" last month, "3m" last quarter, "12m" last year, "lifetime" everything. Default "3m".',
+        ),
+      filters: z
+        .array(z.enum(FILTER_NAMES))
+        .max(3)
+        .optional()
+        .describe(
+          "What the reader can filter by, each starting at all: the dimension the user split by, then any other that helps.",
         ),
     }),
-    execute: ({ title, prompt }, { abortSignal }) =>
-      dashboards.create({ title, prompt }, { userId: userId() }, { signal: abortSignal }),
+    // The filter bar is written here, not by the model: the same date presets and option values
+    // on every dashboard, the ones the data tools read, passed into every query. So are the parts
+    // every dashboard has, whatever the model's description leaves out.
+    execute: ({ title, prompt, range = "3m", filters = [] }, { abortSignal }) =>
+      dashboards.create(
+        { title, prompt: `${prompt}\n\n${dashboardBrief(range, [...new Set(filters)])}` },
+        { userId: userId() },
+        { signal: abortSignal },
+      ),
     // In the message, not folded into the tool-call group.
     display: "standalone",
     render: (props) => <DashboardCard {...props} />,
