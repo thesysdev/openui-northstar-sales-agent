@@ -22,7 +22,7 @@
     "@assistant-ui/react-markdown": "^0.14.24",
     "@modelcontextprotocol/sdk": "^1.32.2",
     "@neondatabase/serverless": "^1.2.0",
-    "@openuidev/dashboard-library": "1.0.0",
+    "@openuidev/dashboard-library": "1.0.1",
     "@openuidev/lang-core": "1.1.1",
     "@openuidev/react-headless": "0.18.7",
     "@openuidev/react-lang": "1.1.1",
