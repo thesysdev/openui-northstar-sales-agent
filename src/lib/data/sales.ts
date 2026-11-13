@@ -141,7 +141,7 @@ const periodExpr = (interval: (typeof INTERVALS)[number], column: string) =>
 
 export const salesTools = {
   get_sales_overview: dataTool(
-    "Headline KPIs for a date range, with the previous range of the same length for comparison: net_sales (USD, after discounts, before refunds), orders, units, aov (average order value), discount_amount and discount_rate_pct, gross_margin_pct, refund_amount, returned_units and refund_rate_pct (refunds processed in the range as a share of net sales), plus previous {net_sales, orders, aov} and change {net_sales_pct, orders_pct, aov_pct}. Optional region, category, brand and channel filters narrow every number to that slice.",
+    "Headline KPIs for a date range, with the previous range of the same length for comparison: net_sales (USD, after discounts, before refunds), orders, units, aov (average order value), discount_amount and discount_rate_pct, gross_margin_pct, refund_amount, returned_units and refund_rate_pct (refunds processed in the range as a share of net sales), plus previous {net_sales, orders, aov} and change {net_sales_pct, orders_pct, aov_pct}. When the previous range starts before the data does (a long range, or lifetime), there's nothing whole to compare with, so previous and change are null. Optional region, category, brand and channel filters narrow every number to that slice.",
     z.object({ ...rangeParams, ...sliceParams }),
     {
       from: "2026-05-10",
@@ -162,6 +162,8 @@ export const salesTools = {
     async (args, signal) => {
       const { from, to } = await dateRange(await withRange(args));
       const prev = previousRange(from, to);
+      // A previous range reaching before the data would compare with a few weeks of orders.
+      const comparable = prev.from >= (await dataDays()).first;
       const slice = readSlice(args);
       return run("overview", { from, to, ...slice }, async () => {
         const filter = sliceWhere(slice, 4);
@@ -223,12 +225,16 @@ export const salesTools = {
           refund_amount: ref.refund_amount,
           returned_units: ref.returned_units,
           refund_rate_pct: pct(ref.refund_amount, cur.net_sales),
-          previous: { net_sales: was.net_sales, orders: was.orders, aov: prevAov },
-          change: {
-            net_sales_pct: changePct(cur.net_sales, was.net_sales),
-            orders_pct: changePct(cur.orders, was.orders),
-            aov_pct: changePct(aov, prevAov),
-          },
+          previous: comparable
+            ? { net_sales: was.net_sales, orders: was.orders, aov: prevAov }
+            : { net_sales: null, orders: null, aov: null },
+          change: comparable
+            ? {
+                net_sales_pct: changePct(cur.net_sales, was.net_sales),
+                orders_pct: changePct(cur.orders, was.orders),
+                aov_pct: changePct(aov, prevAov),
+              }
+            : { net_sales_pct: null, orders_pct: null, aov_pct: null },
         };
       });
     },
@@ -585,7 +591,7 @@ export const salesTools = {
   ),
 
   get_targets_vs_actuals: dataTool(
-    "Monthly net sales against the approved sales targets, for the whole business or per region or category: one row per month and scope with target (USD), actual (net sales minus refunds processed that month), and attainment_pct. Months run up to the last whole month of data. Targets exist only for the whole business, each region and each category, never per brand or channel, so it filters by region or category only: a region filter gives that region's rows (scope region), a category filter that category's (scope category).",
+    "Monthly net sales against the approved sales targets, for the whole business or per region or category: rows: one row per month and scope with target (USD), actual (net sales minus refunds processed that month), and attainment_pct, for trends over time; totals: one row per scope summed over the whole range, for comparing regions or categories (a bar or table per scope reads totals, never rows, which repeat each scope once per month); total: the whole range summed over every scope, for headline numbers. Months run up to the last whole month of data. Targets exist only for the whole business, each region and each category, never per brand or channel, so it filters by region or category only: a region filter gives that region's rows (scope region), a category filter that category's (scope category).",
     z.object({
       scope: z
         .enum(["business", "region", "category"])
@@ -602,6 +608,11 @@ export const salesTools = {
         { month: "2026-10", scope: "West", target: 320_000, actual: 301_410.8, attainment_pct: 94.2 },
         { month: "2026-10", scope: "South", target: 240_000, actual: 262_200.1, attainment_pct: 109.3 },
       ],
+      totals: [
+        { scope: "West", target: 960_000, actual: 921_300.4, attainment_pct: 96.0 },
+        { scope: "South", target: 720_000, actual: 751_880.2, attainment_pct: 104.4 },
+      ],
+      total: { target: 1_680_000, actual: 1_673_180.6, attainment_pct: 99.6 },
     },
     async (args, signal) => {
       let scope = oneOf(args.scope, ["business", "region", "category"], "business");
@@ -669,21 +680,40 @@ export const salesTools = {
         const refunded = new Map(
           refunds.map((row) => [`${row.month}|${row.scope}`, row.refunds as number]),
         );
-        return {
-          scope,
-          rows: targets
-            .filter((row) => !only || String(row.scope).toLowerCase() === only)
-            .map((row) => {
+        const rows = targets
+          .filter((row) => !only || String(row.scope).toLowerCase() === only)
+          .map((row) => {
             const key = `${row.month}|${row.scope}`;
             const actual = round2((booked.get(key) ?? 0) - (refunded.get(key) ?? 0));
             return {
-              month: row.month,
-              scope: row.scope,
-              target: row.target,
+              month: row.month as string,
+              scope: row.scope as string,
+              target: row.target as number,
               actual,
               attainment_pct: pct(actual, row.target as number),
             };
-          }),
+          });
+        // Each scope over the whole range, in the order the rows first name them.
+        const sums = new Map<string, { target: number; actual: number }>();
+        for (const row of rows) {
+          const sum = sums.get(row.scope) ?? { target: 0, actual: 0 };
+          sum.target += row.target;
+          sum.actual += row.actual;
+          sums.set(row.scope, sum);
+        }
+        const totals = [...sums].map(([name, sum]) => ({
+          scope: name,
+          target: round2(sum.target),
+          actual: round2(sum.actual),
+          attainment_pct: pct(sum.actual, sum.target),
+        }));
+        const target = round2(totals.reduce((total, row) => total + row.target, 0));
+        const actual = round2(totals.reduce((total, row) => total + row.actual, 0));
+        return {
+          scope,
+          rows,
+          totals,
+          total: { target, actual, attainment_pct: pct(actual, target) },
         };
       });
     },
